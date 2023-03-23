@@ -1,0 +1,29 @@
+{
+  "datasets":
+  [
+    {
+      "license":"Creative Commons Attribution",
+      "download":
+      [
+        "https://dadosabertos.capes.gov.br/dataset/bdaf1399-29ae-4920-b74f-513f11dbed68/resource/f65b678b-a130-4216-a39e-34b6387def22/download/curso_sf_dump.rdf",
+        "https://dadosabertos.capes.gov.br/dataset/bdaf1399-29ae-4920-b74f-513f11dbed68/resource/8fef91a1-8c0b-4798-89a7-86d0c526a906/download/curso_sf_dump.ttl"
+      ],
+      "size":"None",
+      "author":"",
+      "created":"2020-10-28T18:21:06.759522",
+      "dataset_id":"1",
+      "description":"Os dados da seção contêm informações sobre os cursos de pós-graduação stricto sensu no Brasil.\r\n\r\nEsta versão apresenta os metadados para cursos de pós-graduação stricto sensu dos anos de 2017 a 2019,
+      compreendendo os dados parciais do período de Avaliação e será atualizada até completar-se os quatro anos (2017-2020) do ciclo,
+      finalizando em 2021,
+      ano da próxima Avaliação Quadrienal.\r\n\r\nNova versão será apresentada com atualização em decorrência de reabertura de calendário de envio de dados do Coleta pelos Programas de pós-graduação,
+      referente aos anos de 2017 a 2019.",
+      "title":"[
+      2017 a 2020
+    ]
+      Cursos da Pós-Graduação Stricto Sensu no Brasil",
+      "version":"",
+      "updated":"2020-10-28T19:08:49.763129",
+      "tags":"Cursos;Instituição;Programa;Área do conhecimento;"
+    }
+  ]
+}
