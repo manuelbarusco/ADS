@@ -14,7 +14,7 @@
  *  limitations under the License.
  */
 
-package parse;
+package dei.unipd.parse;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
@@ -23,7 +23,7 @@ import org.apache.lucene.document.Field;
 import java.util.Objects;
 
 /**
- * Represents a parsed document to be indexed.
+ * Represents a parsed dataset to be indexed
  *
  * @author Manuel Barusco (manuel.barusco@studenti.unipd.it)
  * @version 1.00
@@ -32,49 +32,30 @@ import java.util.Objects;
 public class ParsedDocument {
 
     /**
-     * The id of the document (CSV "ID" field)
+     * The id of the dataset extracted from the json file
      */
     private final String id;
 
     /**
-     * The conclusion of the document (CSV "CONCLUSION" field)
-     */
-    private final String conclusion;
-
-    /**
-     * The stance of the document (extract from CSV "CONTEXT" field)
-     */
-    private final String stance;
-
-    /**
-     * Date and time when the document was acquired (extract from CSV "CONTEXT" field)
-     */
-    private final String acquisitionTime;
-
-    /**
-     * The title of the discussion (extract from CSV "CONTEXT" field)
-     */
-    private final String discussionTitle;
-
-    /**
-     * The source URL of the document/discussion (extract from CSV "CONTEXT" field)
-     */
-    private final String url;
-
-    /**
-     * The title of the document (extract from CSV "CONTEXT" field)
+     * The title of the dataset extracted from the json file
      */
     private final String sourceTitle;
 
     /**
-     * The source text of the document/discussion (extract from CSV "CONTEXT" field)
+     * The authors of the dataset extracted from the json file
      */
-    private final String sourceText;
+    private final String authors;
 
     /**
-     * The sentences in which the document is splitted (CSV "SENTENCES" field)
+     * The tags of the dataset extracted from the json file
      */
-    private final Sentence[] sentences;
+    private final String tags;
+
+    /**
+     * The subjects of the dataset extracted from the datasets files
+     */
+    private String subjects
+
 
     /**
      *
