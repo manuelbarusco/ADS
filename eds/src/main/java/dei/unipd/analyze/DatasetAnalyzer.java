@@ -1,4 +1,4 @@
-package analyze;
+package dei.unipd.analyze;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.LowerCaseFilter;
@@ -8,24 +8,20 @@ import org.apache.lucene.analysis.classic.ClassicTokenizer;
 import org.apache.lucene.analysis.en.EnglishPossessiveFilter;
 import org.apache.lucene.analysis.miscellaneous.LengthFilter;
 
-import java.io.IOException;
-
-import static analyze.AnalyzerUtil.consumeTokenStream;
-
 /**
- * Analyzer for document processing, it performs tokenization and other document processing techinques
+ * Analyzer for dataset processing
  *
  * @author Manuel Barusco (manuel.barusco@studenti.unipd.it)
  * @version 1.0
  * @since 1.0
  */
-public class ToucheAnalyzer extends Analyzer {
+public class DatasetAnalyzer extends Analyzer {
 
     /**
      * default constructor
-     * it creates a new instance of the ToucheAnalyzer
+     * it creates a new instance of the DatasetAnalyzer
      */
-    public ToucheAnalyzer() {
+    public DatasetAnalyzer() {
         super();
     }
 

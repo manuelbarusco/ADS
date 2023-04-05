@@ -1,4 +1,4 @@
-package analyze;
+package dei.unipd.analyze;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
@@ -13,11 +13,11 @@ import java.io.*;
  * from the {@code resource} directory as well as consume {@link TokenStream}s and print diagnostic information about
  * them.
  *
- * @author Mario Giovanni Peloso (mariogiovanni.peloso@dei.unipd.it)
+ * @author Manuel Barusco (manuel.barusco@studenti.unipd.it)
  * @version 1.0
  * @since 1.0
  */
-class AnalyzerUtil {
+public class AnalyzerUtil {
 
     private static final ClassLoader CL = AnalyzerUtil.class.getClassLoader();
 
@@ -29,7 +29,7 @@ class AnalyzerUtil {
      * @param t the text to process.
      * @throws IOException if something goes wrong while processing the text.
      */
-    static void consumeTokenStream(final Analyzer a, final String t) throws IOException {
+    public static void consumeTokenStream(final Analyzer a, final String t) throws IOException {
 
         // the start time of the processing
         final long start = System.currentTimeMillis();
@@ -97,7 +97,7 @@ class AnalyzerUtil {
      * @return the stop list
      * @throws IllegalStateException if there is any issue while loading the stop list.
      */
-    static CharArraySet loadStopList(final String stopFile) {
+    public static CharArraySet loadStopList(final String stopFile) {
 
         if (stopFile == null) {
             throw new NullPointerException("Stop list file name cannot be null.");

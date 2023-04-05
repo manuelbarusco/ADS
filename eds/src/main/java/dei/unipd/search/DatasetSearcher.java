@@ -14,10 +14,14 @@
  *  limitations under the License.
  */
 
-package search;
+package dei.unipd.search;
 
 import analyze.ToucheAnalyzerQueries;
+import dei.unipd.analyze.AnalyzerUtil;
+import dei.unipd.parse.ParsedDataset;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.CharArraySet;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.benchmark.quality.QualityQuery;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -28,7 +32,6 @@ import org.apache.lucene.search.similarities.LMDirichletSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.FSDirectory;
 import parse.CustomQueryParser;
-import parse.ParsedDocument;
 import utils.Constants;
 
 import java.io.BufferedReader;
@@ -43,45 +46,49 @@ import java.util.*;
 
 
 /**
- * Searches a document collection.
+ * Searches in a dataset collection
  *
- * @author Nicola Rizzetto (nicola.rizzetto.2@studenti.unipd.it)
- * @author Elham Soleymani (elham.soleymani@studenti.unipd.it)
  * @author Manuel Barusco (manuel.barusco@studenti.unipd.it)
- * @author Riccardo Forzan (riccardo.forzan@studenti.unipd.it)
  * @version 1.00
  * @since 1.00
  */
-public class ToucheSearcher {
+public class DatasetSearcher {
 
     /**
      * The identifier of the run
      */
     private final String runID;
+
     /**
      * The run to be written
      */
     private final PrintWriter run;
+
     /**
      * The index reader
      */
     private final IndexReader reader;
+
     /**
      * The index searcher.
      */
     private final IndexSearcher searcher;
+
     /**
-     * The topics to be searched
+     * The queries to be searched
      */
     private final QualityQuery[] topics;
+
     /**
      * The query parser
      */
     private final CustomQueryParser qp;
+
     /**
-     * The maximum number of documents to retrieve
+     * The maximum number of datasets to retrieve
      */
-    private final int maxDocsRetrieved;
+    private final int maxDatasetsRetrieved;
+
     /**
      * The total elapsed time.
      */
@@ -90,21 +97,21 @@ public class ToucheSearcher {
     /**
      * New searcher.
      *
-     * @param analyzer         the {@code Analyzer} to be used.
-     * @param similarity       the {@code Similarity} to be used.
-     * @param indexPath        the directory containing the index to be searched.
-     * @param topicsFile       the file containing the topics to search for.
-     * @param expectedTopics   the total number of topics expected to be searched.
-     * @param runID            the identifier of the run to be created.
-     * @param runPath          the path where to store the run.
-     * @param maxDocsRetrieved the maximum number of documents to be retrieved.
-     * @param queryWeights     fields weight for query boosting
+     * @param analyzer             the {@code Analyzer} to be used in the search phase
+     * @param similarity           the {@code Similarity} to be used.
+     * @param indexPath            the directory containing the index to be searched.
+     * @param queryFile            the file containing the queries to search for.
+     * @param expectedQueries      the total number of queries expected to be searched.
+     * @param runID                the identifier of the run to be created.
+     * @param runPath              the path where to store the run.
+     * @param maxDatasetsRetrieved the maximum number of datasets to be retrieved.
+     * @param queryWeights         fields weights for query boosting
      * @throws NullPointerException     if any of the parameters is {@code null}.
      * @throws IllegalArgumentException if any of the parameters assumes invalid values.
      */
-    public ToucheSearcher(final Analyzer analyzer, final Similarity similarity, final String indexPath,
-                          final String topicsFile, final int expectedTopics, final String runID, final String runPath,
-                          final int maxDocsRetrieved, Map<String, Float> queryWeights) {
+    public DatasetSearcher(final Analyzer analyzer, final Similarity similarity, final String indexPath,
+                          final String queryFile, final int expectedQueries, final String runID, final String runPath,
+                          final int maxDatasetsRetrieved, Map<String, Float> queryWeights) {
 
         if (analyzer == null) {
             throw new NullPointerException("Analyzer cannot be null.");
@@ -139,45 +146,50 @@ public class ToucheSearcher {
                     indexDir.toAbsolutePath(), e.getMessage()), e);
         }
 
+        //create the index searcher and set the similarity to use
         searcher = new IndexSearcher(reader);
         searcher.setSimilarity(similarity);
 
-        if (topicsFile == null) {
+        if (queryFile == null) {
             throw new NullPointerException("Topics file cannot be null.");
         }
 
-        if (topicsFile.isEmpty()) {
+        if (queryFile.isEmpty()) {
             throw new IllegalArgumentException("Topics file cannot be empty.");
         }
 
         try {
-            BufferedReader in = Files.newBufferedReader(Paths.get(topicsFile), StandardCharsets.UTF_8);
-            topics = new ToucheTopicsReader().readQueries(in);  //list of topics
+            BufferedReader in = Files.newBufferedReader(Paths.get(queryFile), StandardCharsets.UTF_8);
+            topics = new QueriesReader().readQueries(in);  //list of topics
             in.close();
         } catch (IOException e) {
             throw new IllegalArgumentException(
-                    String.format("Unable to process topic file %s: %s.", topicsFile, e.getMessage()), e);
+                    String.format("Unable to process topic file %s: %s.", queryFile, e.getMessage()), e);
         }
 
-        if (expectedTopics <= 0) {
+        if (expectedQueries <= 0) {
             throw new IllegalArgumentException("The expected number of topics to be searched cannot be less than or equal to zero.");
         }
 
-        if (topics.length != expectedTopics) {
-            System.out.printf("Expected to search for %s topics; %s topics found instead.", expectedTopics, topics.length);
+        if (topics.length != expectedQueries) {
+            System.out.printf("Expected to search for %s topics; %s topics found instead.", expectedQueries, topics.length);
         }
 
         // Define different weights to different fields of the documents for applying query boosting
         // if the queryWeights parameter is null, set the default weights
         if (queryWeights == null || queryWeights.size() < 3) {
             queryWeights = new HashMap<>();
-            queryWeights.put(ParsedDocument.FIELDS.SOURCE_TEXT, 2f);
-            queryWeights.put(ParsedDocument.FIELDS.CONCLUSION, 1f);
-            queryWeights.put(ParsedDocument.FIELDS.DISCUSSION_TITLE, 1f);
-            queryWeights.put(ParsedDocument.FIELDS.SOURCE_TITLE, 1f);
+            queryWeights.put(ParsedDataset.FIELDS.TITLE, 2f);
+            queryWeights.put(ParsedDataset.FIELDS.DESCRIPTION, 1f);
+            queryWeights.put(ParsedDataset.FIELDS.TAGS, 1f);
+            queryWeights.put(ParsedDataset.FIELDS.AUTHOR, 1f);
+            queryWeights.put(ParsedDataset.FIELDS.ENTITIES, 1f);
+            queryWeights.put(ParsedDataset.FIELDS.CLASSES, 1f);
+            queryWeights.put(ParsedDataset.FIELDS.LITERALS, 1f);
+            queryWeights.put(ParsedDataset.FIELDS.PROPERTIES, 1f);
         }
 
-        qp = new CustomQueryParser(queryWeights, analyzer, ParsedDocument.FIELDS.SOURCE_TEXT);
+        qp = new CustomQueryParser(queryWeights, analyzer, ParsedDataset.FIELDS.DESCRIPTION);
 
         if (runID == null) {
             throw new NullPointerException("Run identifier cannot be null.");
@@ -216,11 +228,11 @@ public class ToucheSearcher {
                     String.format("Unable to open run file %s: %s.", runFile.toAbsolutePath(), e.getMessage()), e);
         }
 
-        if (maxDocsRetrieved <= 0) {
+        if (maxDatasetsRetrieved <= 0) {
             throw new IllegalArgumentException("The maximum number of documents to be retrieved cannot be less than or equal to zero.");
         }
 
-        this.maxDocsRetrieved = maxDocsRetrieved;
+        this.maxDatasetsRetrieved = maxDatasetsRetrieved;
     }
 
     /**
@@ -232,23 +244,30 @@ public class ToucheSearcher {
     public static void main(String[] args) throws Exception {
 
         final String runID = Constants.runID;
-        final String indexPath = Constants.manuelIndexPath;
-        final String docsPath = Constants.manuelDocsPath;
-        final String topics = Constants.manuelTopics2021;
-        final String runPath = Constants.manuelRunPath;
+        final String indexPath = Constants.indexPath;
+        final String datasetsPath = Constants.datasetsDirectoryPath;
+        final String queriesPath = Constants.queryPath;
+        final String runPath = Constants.runPath;
 
         final int maxDocsRetrieved = 1000;
 
+        //setting the query boosting weights
         Map<String, Float> queryWeights = new HashMap<>();
-        queryWeights.put(ParsedDocument.FIELDS.SOURCE_TEXT, 4f);
-        queryWeights.put(ParsedDocument.FIELDS.CONCLUSION, 2f);
-        queryWeights.put(ParsedDocument.FIELDS.DISCUSSION_TITLE, 2f);
-        queryWeights.put(ParsedDocument.FIELDS.SOURCE_TITLE, 2f);
+        queryWeights.put(ParsedDataset.FIELDS.TITLE, 4f);
+        queryWeights.put(ParsedDataset.FIELDS.DESCRIPTION, 2f);
+        queryWeights.put(ParsedDataset.FIELDS.AUTHOR, 2f);
+        queryWeights.put(ParsedDataset.FIELDS.TAGS, 2f);
+        queryWeights.put(ParsedDataset.FIELDS.CLASSES, 4f);
+        queryWeights.put(ParsedDataset.FIELDS.ENTITIES, 2f);
+        queryWeights.put(ParsedDataset.FIELDS.LITERALS, 2f);
+        queryWeights.put(ParsedDataset.FIELDS.PROPERTIES, 2f);
 
-        final Analyzer a = new ToucheAnalyzerQueries();
+        CharArraySet cas = AnalyzerUtil.loadStopList("nltk-stopwords.txt");
+        final Analyzer a = new StandardAnalyzer(cas);
+
         final Similarity sim = new LMDirichletSimilarity(1800);
 
-        ToucheSearcher s = new ToucheSearcher(a, sim, indexPath, topics, 50, runID, runPath, maxDocsRetrieved, queryWeights);
+        DatasetSearcher s = new DatasetSearcher(a, sim, indexPath, queriesPath, 50, runID, runPath, maxDocsRetrieved, queryWeights);
 
         s.search();
 
@@ -264,7 +283,7 @@ public class ToucheSearcher {
     }
 
     /**
-     * Searches for the specified topics without Query Boosting and without Query Expansion and Re-Ranking
+     * Searches for the specified queries without Query Boosting and without Query Expansion and Re-Ranking
      * this is a base method for searching
      *
      * @throws IOException    if something goes wrong while searching.
@@ -279,17 +298,13 @@ public class ToucheSearcher {
 
         //fields that must be retrieved from the system
         final Set<String> idField = new HashSet<>();
-        idField.add(ParsedDocument.FIELDS.ID);
-        idField.add(ParsedDocument.FIELDS.SENTENCES);
-        idField.add(ParsedDocument.FIELDS.STANCE);
+        idField.add(ParsedDataset.FIELDS.ID);
 
         BooleanQuery.Builder bq;
         Query q;
         TopDocs docs;
         ScoreDoc[] sd;
         String docID; //document ID
-        String[] sentencesID; //sentences ID of the document
-        String stance; //stance of the document
 
         /* only for tuning the system, we write the results of the search in 2 different file
          * runDefault: file that contains the results of the search in a Standard TREC format, it can be parse from trec_eval.
@@ -297,7 +312,7 @@ public class ToucheSearcher {
          * run: file that contains the results of the search with the sentence pairs that we have to submit to CLEF
          */
 
-        try (PrintWriter runDefault = new PrintWriter(Constants.riccardoTRECEvalFile + "_" + runID + ".txt")) {
+        try (PrintWriter runDefault = new PrintWriter(Constants.runPath + "/" + runID + ".txt")) {
 
             for (QualityQuery t : topics) {
 
@@ -306,66 +321,32 @@ public class ToucheSearcher {
                 //original query
                 bq = new BooleanQuery.Builder();
 
-                bq.add(qp.parse(QueryParserBase.escape(t.getValue(TOPIC_FIELDS.TITLE))), BooleanClause.Occur.SHOULD);
+                bq.add(qp.parse(QueryParserBase.escape(t.getValue(QUERY_FIELDS.TEXT))), BooleanClause.Occur.SHOULD);
 
                 //Check the description field is not null/empty/blank
-                String description = t.getValue(TOPIC_FIELDS.DESCRIPTION);
-                if (description != null && !description.isEmpty() && !description.isBlank())
-                    bq.add(qp.parse(QueryParserBase.escape(description)), BooleanClause.Occur.SHOULD);
+                String text = t.getValue(QUERY_FIELDS.TEXT);
+                if (text != null && !text.isEmpty() && !text.isBlank())
+                    bq.add(qp.parse(QueryParserBase.escape(text)), BooleanClause.Occur.SHOULD);
 
                 q = bq.build();
 
-                docs = searcher.search(q, maxDocsRetrieved);
+                docs = searcher.search(q, maxDatasetsRetrieved);
 
                 sd = docs.scoreDocs;
 
-                //HasSet for removing duplicated document IDs in the search
+                //HashSet for removing duplicated document IDs in the search
                 Set<String> nod = new HashSet<>();
-
-                //HasSet for removing duplicated sentences pair in the search
-                Set<String> stanceAndSentencesIDRetrieved = new HashSet<>();
 
                 for (int i = 0, n = sd.length; i < n; i++) {
 
-                    docID = reader.document(sd[i].doc, idField).get(ParsedDocument.FIELDS.ID);
+                    docID = reader.document(sd[i].doc, idField).get(ParsedDataset.FIELDS.ID);
                     if (!nod.contains(docID)) {
                         nod.add(docID);
-                        sentencesID = reader.document(sd[i].doc, idField).getValues(ParsedDocument.FIELDS.SENTENCES);
-                        stance = reader.document(sd[i].doc, idField).get(ParsedDocument.FIELDS.STANCE);
-
-                        //prepare premises and sentences id for the ToucheSentencesRetriever
-                        Vector<String> premsIDs = new Vector<>();
-                        Vector<String> conclIDs = new Vector<>();
-                        for (String s : sentencesID) {
-                            if (s.contains("PREM"))
-                                premsIDs.add(s);
-                            else if (s.contains("CONC"))
-                                conclIDs.add(s);
-                        }
-
-                        //if the argument has no conclusion sentence id, add a custom one
-                        if (conclIDs.isEmpty())
-                            conclIDs.add(docID + "__CONC__1");
-
-                        //retrieve the sentences pairs
-                        ToucheSentencesRetriever sentRetr = new ToucheSentencesRetriever(premsIDs, conclIDs);
-
-                        //write the sentences in the run output file (in the format required by CLEF)
-                        for (String[] pair : sentRetr) {
-                            //create the sentences pair
-                            String sentencesPair = String.format("%s\s%s\s%s,%s\s", t.getQueryID(), stance, pair[0], pair[1]);
-
-                            //check if the sentences pair was already retrieved
-                            if (!stanceAndSentencesIDRetrieved.contains(sentencesPair)) {
-                                run.printf(Locale.ENGLISH, "%s\s%d\s%.2f\s%s%n", sentencesPair, i, sd[i].score, runID);
-                                stanceAndSentencesIDRetrieved.add(sentencesPair);
-                            }
-                        }
-
-                        //write the search results in the runDefault output file (in the standard TREC format)
-                        runDefault.printf(Locale.ENGLISH, "%s\tQ0\t%s\t%d\t%.6f\t%s%n", t.getQueryID(), docID, i, sd[i].score, runID);
-                        i++;
                     }
+
+                    //write the search results in the runDefault output file (in the standard TREC format)
+                    runDefault.printf(Locale.ENGLISH, "%s\tQ0\t%s\t%d\t%.6f\t%s%n", t.getQueryID(), docID, i, sd[i].score, runID);
+                    i++;
                 }
 
                 run.flush();
@@ -401,7 +382,7 @@ public class ToucheSearcher {
      * @throws IOException    if something goes wrong while searching.
      * @throws ParseException if something goes wrong while parsing topics.
      */
-    public void searchBoosted(boolean qExp, boolean reSent, boolean reRead,
+    public void searchBoostedAugmented(boolean qExp, boolean reSent, boolean reRead,
                               boolean allTokens, int maxSynonymsPerWord, double threshold) throws IOException,
             ParseException {
 
@@ -412,9 +393,7 @@ public class ToucheSearcher {
 
         //fields that must be retrieved from the system
         final Set<String> idField = new HashSet<>();
-        idField.add(ParsedDocument.FIELDS.ID);
-        idField.add(ParsedDocument.FIELDS.SENTENCES);
-        idField.add(ParsedDocument.FIELDS.STANCE);
+        idField.add(ParsedDataset.FIELDS.ID);
 
         BooleanQuery.Builder bq;
         Query q;
@@ -433,32 +412,33 @@ public class ToucheSearcher {
          * it can be parsed from trec_eval. We use this file for parameter tuning and test the different solutions.
          * run: file that contains the results of the search with the sentence pairs that we have to submit to CLEF
          */
-        try (PrintWriter runDefault = new PrintWriter(Constants.riccardoTRECEvalFile + "_" + runID + ".txt")) {
+        try (PrintWriter runDefault = new PrintWriter(Constants.runPath + "/" + runID + ".txt")) {
 
             for (QualityQuery t : topics) {
 
                 System.out.printf("Searching for topic %s.%n", t.getQueryID());
 
-                  //Perform the original query
+                //Perform the original query
                 bq = new BooleanQuery.Builder();
-                titleQuery = qp.multipleFieldsParse(t.getValue(TOPIC_FIELDS.TITLE));
+                titleQuery = qp.multipleFieldsParse(t.getValue(QUERY_FIELDS.TEXT));
                 bq.add(titleQuery, BooleanClause.Occur.SHOULD);
 
                 //Check the description field is not null/empty/blank
-                String description = t.getValue(TOPIC_FIELDS.DESCRIPTION);
-                if (description != null && !description.isEmpty() && !description.isBlank()) {
-                    descriptionQuery = qp.multipleFieldsParse(description);
+                String text = t.getValue(QUERY_FIELDS.TEXT);
+                if (text != null && !text.isEmpty() && !text.isBlank()) {
+                    descriptionQuery = qp.multipleFieldsParse(text);
                     bq.add(descriptionQuery, BooleanClause.Occur.SHOULD);
                 }
 
                 //Execute the original query
                 q = bq.build();
-                docs = searcher.search(q, maxDocsRetrieved);
+                docs = searcher.search(q, maxDatasetsRetrieved);
                 sd = docs.scoreDocs;
 
                 //Add the documents found to the result
                 ArrayList<ScoreDoc> documents = new ArrayList<>(Arrays.asList(sd));
 
+                /*
                 //Check if we have to use query expansion
                 if (qExp) {
 
@@ -491,6 +471,7 @@ public class ToucheSearcher {
                     }
                 }
 
+
                 //check if the results must be re-ranked based on sentiment analysis
                 List<ScoreDoc> sentimentOrder = null;
                 if (reSent) {
@@ -509,13 +490,17 @@ public class ToucheSearcher {
                     readabilityOrder = readabilityRanker.rankByReadability();
                 }
 
+                 */
+
                 //Sorting the retrieved documents by their score and cut the list to maxDocsRetrieved
                 List<ScoreDoc> cutUniqueDocuments = null;
                 if (!reSent && !reRead) {
                     documents.sort((o1, o2) -> Float.compare(o1.score, o2.score));
                     Collections.reverse(documents);
-                    cutUniqueDocuments = documents.subList(0, maxDocsRetrieved);
-                } else if (reSent && !reRead) {
+                    cutUniqueDocuments = documents.subList(0, maxDatasetsRetrieved);
+                }
+
+                /*else if (reSent && !reRead) {
                     sentimentOrder.sort((o1, o2) -> Float.compare(o1.score, o2.score));
                     Collections.reverse(sentimentOrder);
                     cutUniqueDocuments = sentimentOrder.subList(0, maxDocsRetrieved);
@@ -524,6 +509,7 @@ public class ToucheSearcher {
                     Collections.reverse(readabilityOrder);
                     cutUniqueDocuments = readabilityOrder.subList(0, maxDocsRetrieved);
                 }
+                */
 
                 //print the results
                 int i = 1;
@@ -531,48 +517,90 @@ public class ToucheSearcher {
                 //HasSet for removing duplicated document IDs in the search
                 HashSet<String> docIDs = new HashSet<>();
 
-                //HasSet for removing duplicated sentences pair in the search
-                Set<String> stanceAndSentencesIDRetrieved = new HashSet<>();
                 for (ScoreDoc document : cutUniqueDocuments) {
 
                     //retrieve the docID
-                    docID = reader.document(document.doc, idField).get(ParsedDocument.FIELDS.ID);
+                    docID = reader.document(document.doc, idField).get(ParsedDataset.FIELDS.ID);
 
                     //check if the docID was already retrieve
                     if (!docIDs.contains(docID)) {
                         docIDs.add(docID);
-                        sentencesID = reader.document(document.doc, idField).getValues(ParsedDocument.FIELDS.SENTENCES);
-                        stance = reader.document(document.doc, idField).get(ParsedDocument.FIELDS.STANCE);
 
-                        //prepare premises and sentences id for the ToucheSentencesRetriever
-                        Vector<String> premsIDs = new Vector<>();
-                        Vector<String> conclIDs = new Vector<>();
-                        for (String s : sentencesID) {
-                            if (s.contains("PREM"))
-                                premsIDs.add(s);
-                            else if (s.contains("CONC"))
-                                conclIDs.add(s);
-                        }
+                        //write the search results in the runDefault output file (in the standard TREC format)
+                        runDefault.printf(Locale.ENGLISH, "%s\tQ0\t%s\t%d\t%.6f\t%s%n", t.getQueryID(), docID, i++, document.score, runID);
+                    }
+                }
+                run.flush();
+                runDefault.flush();
+            }
+        } finally {
+            run.close();
+            reader.close();
+        }
 
-                        //if the argument has no conclusion sentence id, add a custom one
-                        if (conclIDs.isEmpty())
-                            conclIDs.add(docID + "__CONC__1");
+        elapsedTime = System.currentTimeMillis() - start;
+        System.out.printf("%d topic(s) searched in %d seconds.\n", topics.length, elapsedTime / 1000);
+        System.out.print("#### Searching complete ####\n");
+    }
 
-                        //retrieve the sentences pairs
-                        ToucheSentencesRetriever sentRetr = new ToucheSentencesRetriever(premsIDs, conclIDs);
+    /**
+     * Searches for the specified queries
+     *
+     * @throws IOException    if something goes wrong while searching.
+     * @throws ParseException if something goes wrong while parsing topics.
+     */
+    public void searchBoosted() throws IOException, ParseException {
 
-                        //write the sentences in the run output file (in the format required by CLEF)
-                        for (String[] pair : sentRetr) {
-                            if (pairsCounter == 1001)
-                                break;
-                            //create the sentences pair
-                            String sentencesPair = String.format("%s\s%s\s%s,%s", t.getQueryID(), stance, pair[0], pair[1]);
-                            //check if the sentences pair was already retrieved
-                            if (!stanceAndSentencesIDRetrieved.contains(sentencesPair)) {
-                                run.printf(Locale.ENGLISH, "%s\s%d\s%.2f\s%s%n", sentencesPair, pairsCounter++, document.score, runID);
-                                stanceAndSentencesIDRetrieved.add(sentencesPair);
-                            }
-                        }
+        System.out.printf("%n#### Start boosted searching ####%n");
+
+        // the start time of the searching
+        final long start = System.currentTimeMillis();
+
+        //fields that must be retrieved from the system
+        final Set<String> fieldsToLoad = new HashSet<>();
+        fieldsToLoad.add(ParsedDataset.FIELDS.ID);
+
+        Query q;
+        TopDocs docs;
+        ScoreDoc[] sd;
+        String docID; //document ID
+
+
+        /*
+         * only for tuning the system, we write the results of the search in 2 different file
+         * runDefault: file that contains the results of the search in a Standard TREC format,
+         * it can be parsed from trec_eval. We use this file for parameter tuning and test the different solutions.
+         * run: file that contains the results of the search with the sentence pairs that we have to submit to CLEF
+         */
+        try (PrintWriter runDefault = new PrintWriter(Constants.runPath + "/" + runID + ".txt")) {
+
+            for (QualityQuery t : topics) {
+
+                System.out.printf("Searching for topic %s.%n", t.getQueryID());
+
+                //Execute the original query
+                q = qp.multipleFieldsParse(t.getValue(QUERY_FIELDS.TEXT));
+
+                docs = searcher.search(q, maxDatasetsRetrieved);
+                sd = docs.scoreDocs;
+
+                //Add the documents found to the result
+                ArrayList<ScoreDoc> documents = new ArrayList<>(Arrays.asList(sd));
+
+                //print the results
+                int i = 1;
+
+                //HasSet for removing duplicated document IDs in the search
+                HashSet<String> docIDs = new HashSet<>();
+
+                for (ScoreDoc document : documents) {
+
+                    //retrieve the docID
+                    docID = reader.document(document.doc, fieldsToLoad).get(ParsedDataset.FIELDS.ID);
+
+                    //check if the docID was already retrieve
+                    if (!docIDs.contains(docID)) {
+                        docIDs.add(docID);
 
                         //write the search results in the runDefault output file (in the standard TREC format)
                         runDefault.printf(Locale.ENGLISH, "%s\tQ0\t%s\t%d\t%.6f\t%s%n", t.getQueryID(), docID, i++, document.score, runID);
@@ -598,22 +626,18 @@ public class ToucheSearcher {
      * @version 1.00
      * @since 1.00
      */
-    public static final class TOPIC_FIELDS {
+    public static final class QUERY_FIELDS {
 
         /**
          * The title of a topic.
          */
-        public static final String TITLE = "title";
+        public static final String ID = "query_id";
 
         /**
          * The description of a topic.
          */
-        public static final String DESCRIPTION = "description";
+        public static final String TEXT = "description";
 
-        /**
-         * The narrative of a topic.
-         */
-        public static final String NARRATIVE = "narrative";
     }
 
 }

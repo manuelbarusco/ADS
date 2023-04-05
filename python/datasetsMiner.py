@@ -142,44 +142,57 @@ def main():
 
         print("Start mining "+folder.name)
 
-        json_dict = {}
+        #read the dataset.json file previously prodcued by the downloader
 
-        for file in os.scandir(folder):
+        dataset_json_file = open(folder.path+"/dataset.json", "r")
+        dataset_json = json.load(dataset_json_file,strict=False)
+        dataset_json_file.close()
 
-            #consider only files with the correct extension
+        #resume mechanism: check the mined = true field in the dataset.json
 
-            if pathlib.Path(file.path).suffix in suffixes:
+        if not dataset_json["mined"]:
 
-                print("Considering: "+file.path)
+            for file in os.scandir(folder):
 
-                try:
-                    g = Graph()
-                    g.parse(file.path)
+                #consider only files with the correct extension
 
-                    extractClasses(g, json_dict)
-                    extractLiterals(g,json_dict)
-                    extractProperties(g,json_dict)
-                    extractEntities(g,json_dict)
+                if pathlib.Path(file.path).suffix in suffixes:
 
-                    #free memory            
-                    del g
-                except Exception as e: 
-                    print("Failing parsing file: "+file.path)
-                    f_log.write("Mining Dataset: "+folder.name+"\nFailing parsing file: "+file.path)
+                    print("Considering: "+file.path)
 
-        # Serializing json_dict
-        json_dict_object = json.dumps(json_dict, indent=4)
-        # Writing to sample.json_dict
-        with open(folder.path+"/dataset.json", "w") as outfile:
+                    try:
+                        g = Graph()
+                        g.parse(file.path)
+
+                        extractClasses(g, dataset_json)
+                        extractLiterals(g,dataset_json)
+                        extractProperties(g,dataset_json)
+                        extractEntities(g,dataset_json)
+
+                        #free memory            
+                        del g
+                    except Exception as e: 
+                        print("Failing parsing file: "+file.path)
+                        f_log.write("Mining Dataset: "+folder.name+"\nFailing parsing file: "+file.path)
+
+            # Set mined to true for indicating that the dataset is mined
+            dataset_json["mined"] = True
+
+            # Serializing json_dict
+            json_dict_object = json.dumps(dataset_json, indent=4)
+
+            # Writing to sample.json_dict
+            outfile = open(folder.path+"/dataset.json", "w")
             outfile.write(json_dict_object)
 
-        #free memory 
-        del json_dict_object
-        del json_dict
-        outfile.close()
-        f_log.close()
+            #free memory 
+            del json_dict_object
+            del dataset_json
+            outfile.close()
 
-        print("End mining "+folder.name)
+            print("End mining "+folder.name)
+
+    f_log.close()
 
 if __name__ == "__main__":
     main() 

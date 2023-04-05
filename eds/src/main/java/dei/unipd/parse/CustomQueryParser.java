@@ -11,14 +11,14 @@ import java.util.Map;
 
 /**
  * Query parser
- * @author Riccardo Forzan (riccardo.forzan@studenti.unipd.it)
+ * @author Manuel Barusco (manuel.barusco@studenti.unipd.it )
  * @version 1.00
  * @since 1.00
  */
 public class CustomQueryParser {
 
     /**
-     * The query parsed used to create the query
+     * The query parser used to create the query
      */
     private final QueryParser qp;
 
@@ -38,7 +38,7 @@ public class CustomQueryParser {
     private final Analyzer analyzer;
 
     /**
-     * Setup the custom query parser.
+     * Set up the custom query parser.
      *
      * @param queryWeights A map of field with weights
      * @param analyzer     The analyzer used to process the query
@@ -69,13 +69,13 @@ public class CustomQueryParser {
         this.analyzer = analyzer;
         this.defaultField = defaultField;
 
-        //Construct the default object
+        //Construct the default Lucene query parser
         qp = new QueryParser(defaultField, analyzer);
 
     }
 
     /**
-     * Parse a single field using a basic implementation of {@code QueryParserBase} provided by the library
+     * Parse a single field using a basic implementation of {@code QueryParserBase} provided by Lucene
      *
      * @param query The query to parse
      * @return a {@code Query} object
@@ -88,6 +88,7 @@ public class CustomQueryParser {
 
     /**
      * Parse multiple fields in a document using the implementation of {@code MultiFieldQueryParser} provided by the library
+     * by considering the input query
      *
      * @param query The query to parse
      * @return a {@code Query} object
