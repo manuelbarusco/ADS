@@ -1,4 +1,4 @@
-package parse;
+package dei.unipd.parse;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;

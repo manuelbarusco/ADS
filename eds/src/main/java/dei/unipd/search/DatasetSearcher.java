@@ -31,7 +31,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.search.similarities.LMDirichletSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.FSDirectory;
-import parse.CustomQueryParser;
+import dei.unipd.parse.CustomQueryParser;
 import utils.Constants;
 
 import java.io.BufferedReader;
@@ -383,8 +383,7 @@ public class DatasetSearcher {
      * @throws ParseException if something goes wrong while parsing topics.
      */
     public void searchBoostedAugmented(boolean qExp, boolean reSent, boolean reRead,
-                              boolean allTokens, int maxSynonymsPerWord, double threshold) throws IOException,
-            ParseException {
+                              boolean allTokens, int maxSynonymsPerWord, double threshold) throws IOException, ParseException {
 
         System.out.printf("%n#### Start boosted searching ####%n");
 
