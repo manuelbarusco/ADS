@@ -12,7 +12,7 @@ FOR FUTURE PURPOSE
 def extractClasses(g):
     query = """
     PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-    SELECT DISTINCT ?b
+    SELECT ?b
     WHERE {
         ?a a ?b .
     }"""
@@ -39,7 +39,7 @@ This method will extract all the classes
 def extractClasses(g,json_dict):
     query = """
     PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-    SELECT DISTINCT ?c
+    SELECT ?c
     WHERE {
         ?s a ?c .
     }"""
@@ -63,7 +63,7 @@ This method will extract all the entities
 def extractEntities(g,json_dict):
     query = """
     PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-    SELECT DISTINCT ?s
+    SELECT ?s
     WHERE {
         ?s a ?c .
     }"""
@@ -88,7 +88,7 @@ This method will extract all the literals
 def extractLiterals(g,json_dict):
     query = """
     PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-    SELECT DISTINCT ?l
+    SELECT ?l
     WHERE {
         ?s ?p ?l .
         FILTER(isLiteral(?l))
@@ -113,7 +113,7 @@ This method will extract all the properties
 def extractProperties(g,json_dict):
     query = """
     PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-    SELECT DISTINCT ?p
+    SELECT ?p
     WHERE {
         ?s ?p ?o .
     }"""

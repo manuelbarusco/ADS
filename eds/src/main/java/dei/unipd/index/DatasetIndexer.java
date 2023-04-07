@@ -18,6 +18,8 @@ package dei.unipd.index;
 
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
+import dei.unipd.parse.RDFParser;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -27,6 +29,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.FSDirectory;
 import utils.Constants;
 
+import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -228,7 +231,7 @@ public class DatasetIndexer {
      * @param document lucene document object (in our case it represents a dataset)
      * @param name of the json field read
      */
-    public void indexSingleField(JsonReader reader, Document document, String name){
+    public void indexSingleFieldJSON(JsonReader reader, Document document, String name){
         //check the name of the field
         try {
             if (Objects.equals(name, "dataset_id")) {
@@ -312,7 +315,7 @@ public class DatasetIndexer {
      *
      * @throws IOException if something goes wrong while indexing.
      */
-    public void index() throws IOException {
+    public void indexJson() throws IOException {
 
         System.out.printf("%n#### Start indexing ####%n");
 
@@ -350,7 +353,7 @@ public class DatasetIndexer {
                                 //Add the datasets contents and meta-contents to the lucene document
 
                                 String name = reader.nextName();
-                                indexSingleField(reader,doc, name);
+                                indexSingleFieldJSON(reader,doc, name);
 
                             } else if (jsonToken == JsonToken.STRING) {
                                 reader.nextString();
@@ -386,6 +389,149 @@ public class DatasetIndexer {
                 return FileVisitResult.CONTINUE;
             }
         });
+
+        //indexer commit and resource release
+        writer.close();
+
+        if (datasetsCount != expectedDatasets) {
+            System.out.printf("Expected to index %d documents; %d indexed instead.%n", expectedDatasets, datasetsCount);
+        }
+
+        System.out.printf("%d document(s) (%d files, %d Mbytes) indexed in %d seconds.%n", datasetsCount, filesCount,
+                bytesCount / MBYTE, (System.currentTimeMillis() - start) / 1000);
+
+        System.out.printf("#### Indexing complete ####%n");
+    }
+
+    /**
+     * This method index a single field read in the json file by considering the different types
+     * of fields that must be indexed in the document
+     *
+     * @param reader json reader object
+     * @param document lucene document object (in our case it represents a dataset)
+     * @param name of the json field read
+     */
+    public void indexMetaTags(JsonReader reader, Document document, String name){
+        //check the name of the field
+        try {
+            if (Objects.equals(name, "dataset_id")) {
+                String id = reader.nextString();
+                document.add(new DatasetField("dataset_id", id));
+            }
+            if (Objects.equals(name, "title")) {
+                String title = reader.nextString();
+                document.add(new DatasetField("title", title));
+            }
+            if (Objects.equals(name, "description")) {
+                String description = reader.nextString();
+                document.add(new DatasetField("description", description));
+            }
+            if (Objects.equals(name, "author")) {
+                String author = reader.nextString();
+                document.add(new DatasetField("author", author));
+            }
+
+            //the tag are splitted and indexed
+            if (Objects.equals(name, "tags")) {
+                String tags = reader.nextString();
+                String[] tagsArray = tags.split(";");
+                for (String tag : tagsArray) {
+                    document.add(new DatasetField("tags", tag));
+                }
+            }
+
+        } catch (IOException e) {
+            System.out.println(e.getMessage());
+        }
+    }
+
+    /**
+     * Indexes the datasets.
+     *
+     * @throws IOException if something goes wrong while indexing.
+     */
+    public void index() throws IOException {
+
+        System.out.printf("%n#### Start indexing ####%n");
+
+        File[] datasetsDirectories = new File(datasetsDir.toString()).listFiles();
+
+        for (File directory: datasetsDirectories) {
+            Document document = new Document(); //Lucene Document
+            File[] files = directory.listFiles();
+            for (File file: files) {
+
+                if(file.getName().equals("dataset.json")){
+                    //index the meta-data
+
+                    //creating the JSON Parser
+                    JsonReader reader = new JsonReader(new FileReader(file.toString()));
+
+                    JsonToken jsonToken;
+
+                    //loop while we not reach the end of the document
+                    while ((jsonToken = reader.peek()) != JsonToken.END_DOCUMENT) {
+                        if (jsonToken == JsonToken.BEGIN_OBJECT) {
+                            reader.beginObject();
+                        } else if (jsonToken == JsonToken.END_OBJECT) {
+                            reader.endObject();
+                        } else if (jsonToken == JsonToken.BEGIN_ARRAY) {
+                            reader.beginArray();
+                        } else if (jsonToken == JsonToken.END_ARRAY) {
+                            reader.endArray();
+                        } else if (jsonToken == JsonToken.NAME) {
+
+                            //Add the datasets contents and meta-contents to the lucene document
+
+                            String name = reader.nextName();
+                            indexMetaTags(reader,document, name);
+
+                        } else if (jsonToken == JsonToken.STRING) {
+                            reader.nextString();
+                        } else if (jsonToken == JsonToken.BOOLEAN) {
+                            reader.nextBoolean();
+                        }
+                    }
+                    reader.close();
+                } else {
+                    //index the datasets content
+
+                    bytesCount += file.getTotalSpace();
+
+                    filesCount += 1;
+
+                    RDFParser parser = new RDFParser(file.getPath().toString());
+
+                    while(parser.hasNext()){
+                        RDFParser.CustomTriple triple = parser.next();
+
+                        document.add(new DatasetField(triple.getSubject().getKey(), triple.getSubject().getValue()));
+                        document.add(new DatasetField("properties", triple.getPredicate()));
+                        document.add(new DatasetField(triple.getObject().getKey(), triple.getObject().getValue()));
+
+                    }
+
+                    parser.close();
+                }
+            }
+            //end of all datasets files scan
+
+            writer.addDocument(document); //index the document
+
+            datasetsCount++;
+
+            //commit index after every 50 dataset for efficiency reasons
+            //TODO: tune the parameter
+            if (datasetsCount % 50 == 0)
+                writer.commit();
+
+            // print progress every 10000 indexed documents, only for debug purpose
+            if (datasetsCount % 10000 == 0) {
+                System.out.printf("%d document(s) (%d files, %d Mbytes) indexed in %d seconds.%n",
+                        datasetsCount, filesCount, bytesCount / MBYTE,
+                        (System.currentTimeMillis() - start) / 1000);
+            }
+        }
 
         //indexer commit and resource release
         writer.close();

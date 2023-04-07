@@ -140,22 +140,27 @@ def download(urls, dataset_id, dataset_directory_path, f_log):
 
             print("\nDownloading from url: "+url)
 
-            with open(final_path, 'wb') as f:
-                pbar = tqdm( unit="B", total=int( r.headers['Content-Length'] ) )
-                for chunk in r.iter_content(chunk_size=chunkSize): 
-                    if chunk: 
-                        pbar.update (len(chunk))
-                        f.write(chunk)
+            f = open(final_path, 'wb') 
+            pbar = tqdm( unit="B", total=int( r.headers['Content-Length'] ) )
+            for chunk in r.iter_content(chunk_size=chunkSize): 
+                if chunk: 
+                    pbar.update (len(chunk))
+                    f.write(chunk)
 
         except (requests.ConnectionError,requests.HTTPError,requests.exceptions.RequestException) as e:
             print("Error in dataset: "+dataset_id+"\nURL: "+url+"\nError: "+str(e)+"\n")
             f_log.write("Error in dataset: "+dataset_id+"\nURL: "+url+"\nError: "+str(e)+"\n")
+        except (KeyError) as e:
+            for chunk in r.iter_content(chunk_size=chunkSize): 
+                    if chunk: 
+                        f.write(chunk)
+        
 
 def main():
-    datasets_json_path = "/home/manuel/Tesi/ACORDAR/Data/datasets1.json"                     #path to the datasets list json file
-    datasets_folder_path = "/home/manuel/Tesi/ACORDAR/Test"                                  #path to the folder that contains the datasets
+    datasets_json_path = "/home/manuel/Tesi/ACORDAR/Data/datasets.json"                     #path to the datasets list json file
+    datasets_folder_path = "/home/manuel/Tesi/ACORDAR/Datasets"                                  #path to the folder that contains the datasets
     error_log_file = "/home/manuel/Tesi/ACORDAR/Log/downloader_error_log.txt"                #path to the error log file
-    resume_row = 0                                                                           #last downloaded dataset 
+    resume_row = 5538                                                                           #last downloaded dataset 
 
     readAndDownload(datasets_json_path, datasets_folder_path, error_log_file, resume_row)
 
