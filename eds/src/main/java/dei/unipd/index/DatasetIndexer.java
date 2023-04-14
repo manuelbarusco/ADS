@@ -27,10 +27,11 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.FSDirectory;
-import utils.Constants;
+import dei.unipd.utils.Constants;
 
 import java.io.File;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.*;
@@ -454,87 +455,105 @@ public class DatasetIndexer {
 
         System.out.printf("%n#### Start indexing ####%n");
 
+        FileWriter logFile = new FileWriter(Constants.logPath+"/indexer_log.txt");
+
         File[] datasetsDirectories = new File(datasetsDir.toString()).listFiles();
 
+        int errors = 0;
+
+        final int resume = 6900;
+        final int pass = 11580;
+        int index = 1;
+
         for (File directory: datasetsDirectories) {
-            Document document = new Document(); //Lucene Document
-            File[] files = directory.listFiles();
-            for (File file: files) {
+            if(index > resume && !directory.getName().equals("dataset-11580")) {
+                Document document = new Document();     //Lucene Document
+                File[] files = directory.listFiles();
 
-                if(file.getName().equals("dataset.json")){
-                    //index the meta-data
+                for (File file : files) {
 
-                    //creating the JSON Parser
-                    JsonReader reader = new JsonReader(new FileReader(file.toString()));
+                    if (file.getName().equals("dataset.json")) {
+                        //index the meta-data
 
-                    JsonToken jsonToken;
+                        //creating the JSON Parser
+                        JsonReader reader = new JsonReader(new FileReader(file.toString()));
 
-                    //loop while we not reach the end of the document
-                    while ((jsonToken = reader.peek()) != JsonToken.END_DOCUMENT) {
-                        if (jsonToken == JsonToken.BEGIN_OBJECT) {
-                            reader.beginObject();
-                        } else if (jsonToken == JsonToken.END_OBJECT) {
-                            reader.endObject();
-                        } else if (jsonToken == JsonToken.BEGIN_ARRAY) {
-                            reader.beginArray();
-                        } else if (jsonToken == JsonToken.END_ARRAY) {
-                            reader.endArray();
-                        } else if (jsonToken == JsonToken.NAME) {
+                        JsonToken jsonToken;
 
-                            //Add the datasets contents and meta-contents to the lucene document
+                        //loop while we not reach the end of the document
+                        while ((jsonToken = reader.peek()) != JsonToken.END_DOCUMENT) {
+                            if (jsonToken == JsonToken.BEGIN_OBJECT) {
+                                reader.beginObject();
+                            } else if (jsonToken == JsonToken.END_OBJECT) {
+                                reader.endObject();
+                            } else if (jsonToken == JsonToken.BEGIN_ARRAY) {
+                                reader.beginArray();
+                            } else if (jsonToken == JsonToken.END_ARRAY) {
+                                reader.endArray();
+                            } else if (jsonToken == JsonToken.NAME) {
 
-                            String name = reader.nextName();
-                            indexMetaTags(reader,document, name);
+                                //Add the datasets contents and meta-contents to the lucene document
 
-                        } else if (jsonToken == JsonToken.STRING) {
-                            reader.nextString();
-                        } else if (jsonToken == JsonToken.BOOLEAN) {
-                            reader.nextBoolean();
+                                String name = reader.nextName();
+                                indexMetaTags(reader, document, name);
+
+                            } else if (jsonToken == JsonToken.STRING) {
+                                reader.nextString();
+                            } else if (jsonToken == JsonToken.BOOLEAN) {
+                                reader.nextBoolean();
+                            }
+                        }
+                        reader.close();
+                    } else {
+                        //index the datasets content
+
+                        bytesCount += file.getTotalSpace();
+
+                        filesCount += 1;
+
+                        RDFParser parser;
+                        try {
+                            parser = new RDFParser(file.getPath().toString());
+                            while (parser.hasNext()) {
+                                RDFParser.CustomTriple triple = parser.next();
+
+                                document.add(new DatasetField(triple.getSubject().getKey(), triple.getSubject().getValue()));
+                                document.add(new DatasetField("properties", triple.getPredicate()));
+                                document.add(new DatasetField(triple.getObject().getKey(), triple.getObject().getValue()));
+                            }
+                            parser.close();
+                        } catch (Exception e) {
+                            logFile.write("Error in indexing file: " + file.getName() + " in directory: " + directory.getName() + "\n");
+                            errors++;
                         }
                     }
-                    reader.close();
-                } else {
-                    //index the datasets content
+                }
 
-                    bytesCount += file.getTotalSpace();
+                //end of all datasets files scan
+                writer.addDocument(document); //index the document
 
-                    filesCount += 1;
+                datasetsCount++;
 
-                    RDFParser parser = new RDFParser(file.getPath().toString());
+                //commit index after every 50 dataset for efficiency reasons
+                //TODO: tune the parameter
+                if (datasetsCount % 50 == 0) {
+                    writer.commit();
+                }
 
-                    while(parser.hasNext()){
-                        RDFParser.CustomTriple triple = parser.next();
-
-                        document.add(new DatasetField(triple.getSubject().getKey(), triple.getSubject().getValue()));
-                        document.add(new DatasetField("properties", triple.getPredicate()));
-                        document.add(new DatasetField(triple.getObject().getKey(), triple.getObject().getValue()));
-
-                    }
-
-                    parser.close();
+                // print progress every 10000 indexed documents, only for debug purpose
+                if (datasetsCount % 100 == 0) {
+                    System.out.printf("%d document(s) %d error(s) in parsing (%d files, %d Mbytes) indexed in %d seconds.%n",
+                            datasetsCount, errors, filesCount, bytesCount / MBYTE,
+                            (System.currentTimeMillis() - start) / 1000);
                 }
             }
-            //end of all datasets files scan
-
-            writer.addDocument(document); //index the document
-
-            datasetsCount++;
-
-            //commit index after every 50 dataset for efficiency reasons
-            //TODO: tune the parameter
-            if (datasetsCount % 50 == 0)
-                writer.commit();
-
-            // print progress every 10000 indexed documents, only for debug purpose
-            if (datasetsCount % 10000 == 0) {
-                System.out.printf("%d document(s) (%d files, %d Mbytes) indexed in %d seconds.%n",
-                        datasetsCount, filesCount, bytesCount / MBYTE,
-                        (System.currentTimeMillis() - start) / 1000);
-            }
+            index++;
         }
 
         //indexer commit and resource release
         writer.close();
+
+        logFile.close();
 
         if (datasetsCount != expectedDatasets) {
             System.out.printf("Expected to index %d documents; %d indexed instead.%n", expectedDatasets, datasetsCount);
@@ -554,7 +573,7 @@ public class DatasetIndexer {
      */
     public static void main(String[] args) throws Exception {
 
-        final int ramBuffer = 256;
+        final int ramBuffer = 512;
         final String indexPath = Constants.indexPath;
         final String datasetDirectoryPath = Constants.datasetsDirectoryPath;
 

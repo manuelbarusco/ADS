@@ -158,9 +158,9 @@ def download(urls, dataset_id, dataset_directory_path, f_log):
 
 def main():
     datasets_json_path = "/home/manuel/Tesi/ACORDAR/Data/datasets.json"                     #path to the datasets list json file
-    datasets_folder_path = "/home/manuel/Tesi/ACORDAR/Datasets"                                  #path to the folder that contains the datasets
+    datasets_folder_path = "/media/manuel/500GBHDD/Tesi/Datasets"                                  #path to the folder that contains the datasets
     error_log_file = "/home/manuel/Tesi/ACORDAR/Log/downloader_error_log.txt"                #path to the error log file
-    resume_row = 5538                                                                           #last downloaded dataset 
+    resume_row = 0                                                                           #last downloaded dataset 
 
     readAndDownload(datasets_json_path, datasets_folder_path, error_log_file, resume_row)
 

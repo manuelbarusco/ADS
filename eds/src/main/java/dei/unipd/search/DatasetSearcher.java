@@ -32,7 +32,7 @@ import org.apache.lucene.search.similarities.LMDirichletSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.FSDirectory;
 import dei.unipd.parse.CustomQueryParser;
-import utils.Constants;
+import dei.unipd.utils.Constants;
 
 import java.io.BufferedReader;
 import java.io.IOException;

@@ -1,28 +1,13 @@
 package dei.unipd.parse;
 
 import org.apache.commons.io.FilenameUtils;
-import org.apache.jena.ext.com.google.common.collect.Maps;
-import org.apache.jena.ontology.OntClass;
-import org.apache.jena.ontology.OntModel;
-import org.apache.jena.query.QueryExecutionFactory;
-import org.apache.jena.query.ResultSet;
 import org.apache.jena.rdf.model.*;
-import org.apache.jena.riot.RDFDataMgr;
-import org.apache.jena.util.iterator.ExtendedIterator;
-import org.apache.jena.vocabulary.RDF;
-import org.apache.jena.query.QueryFactory;
-import org.apache.jena.query.Query;
-import org.apache.jena.query.QueryExecution;
-import org.apache.jena.query.QuerySolution;
-import org.apache.jena.util.FileManager;
 
-import javax.swing.*;
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.*;
+import java.util.AbstractMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NoSuchElementException;
 
 
 /**
@@ -146,6 +131,7 @@ public class RDFParser implements Iterator<RDFParser.CustomTriple> {
         public Map.Entry<String, String> getObject() {
             return object;
         }
+
     }
 
 
