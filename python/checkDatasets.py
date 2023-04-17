@@ -34,7 +34,7 @@ This function tries to recover a text file (deduced by the mime type) in a ttl f
 if it is recoverable, it will recover it and log in the log file 
 if it is not recoverable, it will log it and remvoe the attempt
 
-@param folder object folder to the dataset-folder 
+@param folder object folder to the dataset-folder   
 @param path to the text file to be recovered
 @param file object file to the file to be recovered
 @param parsable_files number of parsable files in the dataset folder
@@ -57,11 +57,15 @@ def recoverFile(folder, path, file, parsable_files, f_log):
 @param dataset_directory path of directory where are all the datasets
 @param error_log_file path of the error log file
 @param suffixes array of accettable suffixes
+@param datasets_indexable_list_file text file with an array with all the datasets id of the content indexable datasets
 '''
-def startCheck(datasets_directory, error_log_file, suffixes):
+def startCheck(datasets_directory, error_log_file, suffixes, datasets_indexable_list_file):
     
     #open the error log file
     f_log=open(error_log_file, "w+")
+
+    #open the list of all the content indexable datasets 
+    f_indexable=open(datasets_indexable_list_file, "w+")
 
     for folder in os.scandir(datasets_directory):
 
@@ -134,16 +138,22 @@ def startCheck(datasets_directory, error_log_file, suffixes):
         if parsable_files == dataset_json["download_info"]["downloaded"]:
             dataset_json["indexable"] = 2
 
+        #if the dataset is indexable add its id to the list file
+        if dataset_json["indexable"] == 1 or dataset_json["indexable"] == 2:
+            f_indexable.write(dataset_json["dataset_id"])
+
         del(dataset_json)
         dataset_json_file.close()
 
     f_log.close()
+    f_indexable.close()
 
 def main():
     #datasets_directory = "/home/manuel/Tesi/ACORDAR/Test" 
-    datasets_directory = "/media/manuel/500GBHDD/Tesi/Datasets"                              #path to the folder of the downloaded datasets
-    error_log_file = "/home/manuel/Tesi/ACORDAR/Log/checker_error_log.txt"                   #path to the error log file
+    datasets_directory = "/media/manuel/500GBHDD/Tesi/Datasets"                                   #path to the folder of the downloaded datasets
+    error_log_file = "/home/manuel/Tesi/ACORDAR/Log/checker_error_log.txt"                        #path to the error log file
+    datasets_indexable_list_file = "/home/manuel/Tesi/ACORDAR/Data/indexable_datasets.txt"   #path to the list file with all the full indexable datasets
 
     suffixes = [".rdf", ".ttl", ".owl", ".n3", ".nt", ".jsonld", ".xml"]
 
-    startCheck(datasets_directory, error_log_file, suffixes)
+    startCheck(datasets_directory, error_log_file, suffixes, datasets_indexable_list_file)
