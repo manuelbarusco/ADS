@@ -15,12 +15,6 @@ import java.util.regex.Pattern;
 
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
-import org.apache.tika.Tika;
-import org.apache.tika.detect.DefaultDetector;
-import org.apache.tika.detect.Detector;
-import org.apache.tika.metadata.Metadata;
-import org.apache.tika.mime.MediaType;
-import org.apache.tika.parser.AutoDetectParser;
 
 /** TODO:
  * manage not working links

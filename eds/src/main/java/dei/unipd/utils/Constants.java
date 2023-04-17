@@ -1,4 +1,4 @@
-package utils;
+package dei.unipd.utils;
 
 /**
  * This class contains the path for retrieving the files in our machines
@@ -13,12 +13,21 @@ public class Constants {
     /**
      * Datasets directory
      */
-    public static final String datasetsDirectoryPath = "/home/manuel/Tesi/ACORDAR/Test";
+    public static final String datasetsDirectoryPath = "/media/manuel/500GBHDD/Tesi/Datasets";
+
+    public static final String datasetsDirectoryPathTest = "/home/manuel/Tesi/ACORDAR/Test";
 
     /**
      * Path to the index
      */
-    public static final String indexPath = "/home/manuel/Tesi/ACORDAR/Index";
+    public static final String indexPath = "/media/manuel/500GBHDD/Tesi/Index";
+
+    public static final String indexPathTest = "/home/manuel/Tesi/ACORDAR/Index";
+
+    /**
+     * Path to the log files
+     */
+    public static final String logPath = "/home/manuel/Tesi/ACORDAR/Log";
 
     /**
      * Queries path

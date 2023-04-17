@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
-import utils.Constants;
+import dei.unipd.utils.Constants;
 
 /**
  * Main clas that runs the whole EDS pipeline

@@ -4,6 +4,7 @@ import json
 import requests
 from tqdm import tqdm
 import os
+import re
   
 '''
 This function will read the json file and download all the datasets
@@ -43,8 +44,8 @@ def readAndDownload(datasets_json_path, datasets_folder_path,  error_log_file, r
             print("Processing row order dataset: "+ str(row))
             print("\nStart downloading dataset: "+dataset_id)
 
-            createDatasetJSONFile(dataset, dataset_directory_path) 
-            download(dataset["download"], dataset_id, dataset_directory_path,f_log)
+            dataset_json = createDatasetJSONFile(dataset) 
+            download(dataset["download"], dataset_id, dataset_directory_path, dataset_json, f_log)
 
             print("\nEnd downloading dataset: "+dataset_id)
 
@@ -60,9 +61,8 @@ def readAndDownload(datasets_json_path, datasets_folder_path,  error_log_file, r
 '''
 This function will create the dataset.json file with the dataset meta-tags
 @param dataset json object of the dataset
-@param dataset_directory_path directory of the dataset
 '''
-def createDatasetJSONFile(dataset, dataset_directory_path):
+def createDatasetJSONFile(dataset):
 
     dataset_json = {}
 
@@ -72,17 +72,7 @@ def createDatasetJSONFile(dataset, dataset_directory_path):
     #set the mined false for future mining
     dataset_json["mined"]=False
 
-    #serializing dataset_json object
-    json_dict_object = json.dumps(dataset_json, indent=4)
-
-    #writing 
-    with open(dataset_directory_path+"/dataset.json", "w") as outfile:
-        outfile.write(json_dict_object)
-
-    #free memory 
-    del json_dict_object
-    del dataset_json
-    outfile.close()
+    return dataset_json 
 
 '''
 This function add the metatags to the dataset.json file previosly downloaded
@@ -112,9 +102,14 @@ This function will download one dataset file
 @param url array with all the urls to the datasets
 @param dataset_id id of the dataset
 @param dataset_directory_path path where the dataset is downloaded 
+@param dataset_json dict object to be serialized into a json object and file
 @param f_log log file for all the errors
 '''
-def download(urls, dataset_id, dataset_directory_path, f_log):
+def download(urls, dataset_id, dataset_directory_path, dataset_json, f_log):
+
+    url_i = 0 
+
+    downloaded_files = 0 
 
     for url in urls: 
 
@@ -133,6 +128,16 @@ def download(urls, dataset_id, dataset_directory_path, f_log):
                 if url.find('/'):
                     filename = url.rsplit('/', 1)[1]
 
+                #escape not valid caracthers in the url
+                match = re.search("[:#?&=%*]", filename)
+
+                if match:
+                    filename = filename[0:match.start()]
+
+                #check for empty string
+                if filename == "":
+                    filename = "file_url_"+str(url_i); 
+
             #download the dataset
             chunkSize = 1024
 
@@ -146,21 +151,45 @@ def download(urls, dataset_id, dataset_directory_path, f_log):
                 if chunk: 
                     pbar.update (len(chunk))
                     f.write(chunk)
+            
+            #close the  downloaded file
+            f.close()
+            downloaded_files += 1
 
         except (requests.ConnectionError,requests.HTTPError,requests.exceptions.RequestException) as e:
             print("Error in dataset: "+dataset_id+"\nURL: "+url+"\nError: "+str(e)+"\n")
             f_log.write("Error in dataset: "+dataset_id+"\nURL: "+url+"\nError: "+str(e)+"\n")
-        except (KeyError) as e:
-            for chunk in r.iter_content(chunk_size=chunkSize): 
-                    if chunk: 
-                        f.write(chunk)
         
+        except (KeyError) as e:
+            #if the content-length header is not present
+
+            for chunk in r.iter_content(chunk_size=chunkSize): 
+                if chunk: 
+                    f.write(chunk)
+            #close the  downloaded file
+            f.close()
+            downloaded_files += 1
+
+    dataset_json["download_info"] = {"downloaded": downloaded_files, "total_URLS": len(urls)}
+        
+    #serializing dataset_json object
+    json_dict_object = json.dumps(dataset_json, indent=4)
+
+    #writing the json file
+    with open(dataset_directory_path+"/dataset.json", "w") as outfile:
+        outfile.write(json_dict_object)
+
+    #free memory by closing the dataset.json file
+    del json_dict_object
+    del dataset_json
+    outfile.close()
+
 
 def main():
     datasets_json_path = "/home/manuel/Tesi/ACORDAR/Data/datasets.json"                     #path to the datasets list json file
-    datasets_folder_path = "/home/manuel/Tesi/ACORDAR/Datasets"                                  #path to the folder that contains the datasets
+    datasets_folder_path = "/media/manuel/500GBHDD/Tesi/Datasets"                                  #path to the folder that contains the datasets
     error_log_file = "/home/manuel/Tesi/ACORDAR/Log/downloader_error_log.txt"                #path to the error log file
-    resume_row = 5538                                                                           #last downloaded dataset 
+    resume_row = 21655                                                                           #last downloaded dataset 
 
     readAndDownload(datasets_json_path, datasets_folder_path, error_log_file, resume_row)
 
