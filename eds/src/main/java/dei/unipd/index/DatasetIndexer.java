@@ -36,6 +36,8 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Objects;
 
 import dei.unipd.analyze.AnalyzerUtil;
@@ -261,6 +263,8 @@ public class DatasetIndexer {
                 }
             }
 
+
+
             //manage the classes, entities, literals and properties
             if (Objects.equals(name, "classes")) {
                 reader.beginArray();
@@ -411,39 +415,45 @@ public class DatasetIndexer {
      * @param reader json reader object
      * @param document lucene document object (in our case it represents a dataset)
      * @param name of the json field read
+     * @return true if there are other fields to index in the dataset.json file, else false (we are not indexing info such as mined or download info)
      */
-    public void indexMetaTags(JsonReader reader, Document document, String name){
+    public boolean indexMetaTags(JsonReader reader, Document document, String name){
         //check the name of the field
         try {
             if (Objects.equals(name, "dataset_id")) {
                 String id = reader.nextString();
                 document.add(new DatasetField("dataset_id", id));
-            }
-            if (Objects.equals(name, "title")) {
+            } else if (Objects.equals(name, "title")) {
                 String title = reader.nextString();
                 document.add(new DatasetField("title", title));
-            }
-            if (Objects.equals(name, "description")) {
+            } else if (Objects.equals(name, "description")) {
                 String description = reader.nextString();
                 document.add(new DatasetField("description", description));
-            }
-            if (Objects.equals(name, "author")) {
+            } else if (Objects.equals(name, "author")) {
                 String author = reader.nextString();
                 document.add(new DatasetField("author", author));
-            }
-
-            //the tag are splitted and indexed
-            if (Objects.equals(name, "tags")) {
+            } else if (Objects.equals(name, "tags")) {
+                //the tag are splitted and indexed
                 String tags = reader.nextString();
                 String[] tagsArray = tags.split(";");
                 for (String tag : tagsArray) {
                     document.add(new DatasetField("tags", tag));
                 }
+            } else {
+                return false;
             }
-
         } catch (IOException e) {
             System.out.println(e.getMessage());
         }
+        return true;
+    }
+
+    /**
+     * @param fileName name of the file
+     * @return true if the file has a valid RDF extension
+     */
+    private boolean isRDFFile(String fileName){
+        return Constants.suffixes.contains(FilenameUtils.getExtension(fileName));
     }
 
     /**
@@ -455,20 +465,24 @@ public class DatasetIndexer {
 
         System.out.printf("%n#### Start indexing ####%n");
 
-        FileWriter logFile = new FileWriter(Constants.logPath+"/indexer_log.txt");
+        FileWriter logFile = new FileWriter(Constants.logPath+"/indexer_log.txt", true);
 
         File[] datasetsDirectories = new File(datasetsDir.toString()).listFiles();
 
         int errors = 0;
 
-        final int resume = 6900;
-        final int pass = 11580;
+        final int resume = 8908;
+        HashSet<String> pass = new HashSet<>(Arrays.asList("dataset-11580"));
         int index = 1;
 
         for (File directory: datasetsDirectories) {
-            if(index > resume && !directory.getName().equals("dataset-11580")) {
+
+            //check the resume index and skip the datasets with uncorrect files
+            if(index > resume && !pass.contains(directory.getName() )) {
                 Document document = new Document();     //Lucene Document
                 File[] files = directory.listFiles();
+
+                int indexableFiles = files.length - 1; // Not count the dataset.json file
 
                 for (File file : files) {
 
@@ -495,7 +509,8 @@ public class DatasetIndexer {
                                 //Add the datasets contents and meta-contents to the lucene document
 
                                 String name = reader.nextName();
-                                indexMetaTags(reader, document, name);
+                                if(!indexMetaTags(reader, document, name))
+                                    break;
 
                             } else if (jsonToken == JsonToken.STRING) {
                                 reader.nextString();
@@ -504,30 +519,39 @@ public class DatasetIndexer {
                             }
                         }
                         reader.close();
-                    } else {
-                        //index the datasets content
+                    } else if (isRDFFile(file.getName())){
 
-                        bytesCount += file.getTotalSpace();
+                        //check if the file is greater than 500 megabytes
+                        if ((file.length() / (1024)^2) > 500){
+                            logFile.write("Dataset: "+directory.getName()+"\nFile: "+file.getName()+"\nError: bigger than 500 MB");
+                        } else {
+                            //index the datasets content
 
-                        filesCount += 1;
+                            bytesCount += file.getTotalSpace();
 
-                        RDFParser parser;
-                        try {
-                            parser = new RDFParser(file.getPath().toString());
-                            while (parser.hasNext()) {
-                                RDFParser.CustomTriple triple = parser.next();
+                            filesCount += 1;
 
-                                document.add(new DatasetField(triple.getSubject().getKey(), triple.getSubject().getValue()));
-                                document.add(new DatasetField("properties", triple.getPredicate()));
-                                document.add(new DatasetField(triple.getObject().getKey(), triple.getObject().getValue()));
+                            RDFParser parser;
+                            try {
+                                parser = new RDFParser(file.getPath().toString());
+                                while (parser.hasNext()) {
+                                    RDFParser.CustomTriple triple = parser.next();
+
+                                    document.add(new DatasetField(triple.getSubject().getKey(), triple.getSubject().getValue()));
+                                    document.add(new DatasetField("properties", triple.getPredicate()));
+                                    document.add(new DatasetField(triple.getObject().getKey(), triple.getObject().getValue()));
+                                }
+                                parser.close();
+                            } catch (Exception e) {
+                                logFile.write("Dataset: "+directory.getName()+"\nFile: "+file.getName()+"\nError: "+ e);
+                                errors++;
+                                indexableFiles--;
                             }
-                            parser.close();
-                        } catch (Exception e) {
-                            logFile.write("Error in indexing file: " + file.getName() + " in directory: " + directory.getName() + "\n");
-                            errors++;
                         }
                     }
                 }
+
+                //TODO: update the dataset.json file with the indexable info
 
                 //end of all datasets files scan
                 writer.addDocument(document); //index the document

@@ -1,5 +1,7 @@
 '''
 This script will adjust and align the annotation of all the downloaded datasets
+This script was developed for adapting the datasets content to the various version of behaviour of the
+downloader
 
 * If the dataset has not the dataset.json file with all the meta tags it will create it
 * The dataset json must contain the download_info file
@@ -21,7 +23,9 @@ def createDatasetJSONFile(dataset, dataset_directory_path):
     addMetaTags(dataset, dataset_json)
 
     #add the download info
-    addDownloadInfo(dataset, dataset_json, dataset_directory_path)
+    nfiles = len(os.listdir(dataset_directory_path))
+
+    dataset_json["download_info"] = {"downloaded": nfiles , "total_URLS": len(dataset["download"])}
 
     #set the mined false for future mining
     dataset_json["mined"]=False
@@ -60,18 +64,7 @@ def addMetaTags(dataset, dataset_json):
 
     if "tags" in dataset:
         dataset_json["tags"] = dataset["tags"]
- 
-'''
-@param dataset json object extracted from the datasets json list, it represent a dataset object in the list 
-@param dataset_json dictionary object of the dataset.json file to be created
-@param dataset_directory_path path to the dataset directory
-'''
-def addDownloadInfo(dataset, dataset_json, dataset_directory_path): 
-    
-    nfiles = len(os.scandir(dataset_directory_path))
 
-    dataset_json["download_info"]["downloaded"] = nfiles                        #not put -1 because the dataset.json file is not already created
-    dataset_json["download_info"]["total_URLS"] = len(dataset["download"])
 
 '''
 This function adjust the download info of the downloaded dataset that have a
@@ -84,6 +77,7 @@ dataset.json file already saved. We check:
 @param dataset_directory_path path to the dataset directory
 '''
 def checkDownloadInfo(dataset, dataset_directory_path, dataset_json_path):
+    
     #open the dataset.json file
     dataset_json_file = open(dataset_json_path, "r")
     dataset_json = json.load(dataset_json_file,strict=False)
@@ -96,23 +90,25 @@ def checkDownloadInfo(dataset, dataset_directory_path, dataset_json_path):
         ndownloaded = 0
 
         #check for the name of the downloaded field 
-        if "Downloaded" in dataset["download_info"]:
-            ndownloaded = dataset["download_info"]["Downloaded"]
-            del(dataset["download_info"]["Downloaded"])
-            del(dataset["download_info"]["Total_URLS"])
-        elif "downloaded" in dataset["download_info"]:
-            ndownloaded = dataset["download_info"]["downloaded"]
+        if "Downloaded" in dataset_json["download_info"]:
+            ndownloaded = dataset_json["download_info"]["Downloaded"]
+            del(dataset_json["download_info"]["Downloaded"])
+            del(dataset_json["download_info"]["Total_URLS"])
+        elif "downloaded" in dataset_json["download_info"]:
+            ndownloaded = dataset_json["download_info"]["downloaded"]
 
         #check the correctness of the info of the downloaded dataset and adjust it
-        if ndownloaded < (len(os.scandir(dataset_directory_path))-1):
-            ndownloaded = len(os.scandir(dataset_directory_path)) - 1  #-1 because we are not considering the dataset.json file
+        if ndownloaded != (len(os.listdir(dataset_directory_path))-1) :
+            ndownloaded = len(os.listdir(dataset_directory_path)) - 1  #-1 because we are not considering the dataset.json file
 
         #correct the name of the fields
-        dataset["download_info"]["downloaded"] = ndownloaded
-        dataset["download_info"]["total_URLS"] = len(dataset["download"])
+        dataset_json["download_info"]["downloaded"] = ndownloaded
+        dataset_json["download_info"]["total_URLS"] = len(dataset["download"])
     
     else:
-        addDownloadInfo(dataset, dataset_json, dataset_directory_path) 
+        nfiles = len(os.listdir(dataset_directory_path))
+
+        dataset_json["download_info"] = {"downloaded": nfiles - 1 , "total_URLS": len(dataset["download"])}
 
     #write the new dataset.json file
     #serializing dataset_json object
@@ -137,26 +133,95 @@ def main():
 
     print("START ANNOTATION")
 
+    i =  0
+    dataset_number = 13565
+    single_dataset = True
+
     for dataset in json_list['datasets']:
 
         dataset_id = dataset["dataset_id"]
-        dataset_directory_path = datasets_directory_path + "/dataset-" + dataset_id
 
-        #define the dataset directory path and dataset.json file path
-        dataset_json_path = datasets_directory_path + "/dataset-" + dataset_id + "/dataset.json"
+        if single_dataset:
 
-        #check if the dataset was downloaded
-        if os.path.exists(dataset_directory_path):
+            if int(dataset_id) == dataset_number:
 
-            #check if the json file for the given dataset exists
-            if not os.path.exists(dataset_json_path): 
+                dataset_directory_path = datasets_directory_path + "/dataset-" + dataset_id
 
-                print("Annotating dataset: "+dataset_id +" creating the json file")
-                createDatasetJSONFile(dataset, dataset_directory_path)
+                #define the dataset directory path and dataset.json file path
+                dataset_json_path = datasets_directory_path + "/dataset-" + dataset_id + "/dataset.json"
 
-            else :
+                #check if the dataset was downloaded, so there is its directory 
+                if os.path.exists(dataset_directory_path):
 
-                checkDownloadInfo(dataset, dataset_directory_path, dataset_json_path)
+                    #check if the json file for the given dataset exists
+                    if not os.path.exists(dataset_json_path): 
+
+                        print("Annotating dataset: "+dataset_id +" creating the json file")
+                        createDatasetJSONFile(dataset, dataset_directory_path)
+
+                    else :
+
+                        corrupted = False
+
+                        #check that the file is corrected 
+                        try:
+                            dataset_json_file = open(dataset_json_path, "r")
+                            dataset_json = json.load(dataset_json_file,strict=False)
+                        except json.JSONDecodeError as e:
+                            corrupted = True
+                            os.remove(dataset_json_path)
+                        finally:
+                            dataset_json_file.close()
+                        
+                        if corrupted:
+                            print("Re-annotating dataset: "+dataset_id +" creating the json file")
+                            createDatasetJSONFile(dataset, dataset_directory_path)
+                        else:
+                            checkDownloadInfo(dataset, dataset_directory_path, dataset_json_path)
+
+
+        else :
+
+            dataset_directory_path = datasets_directory_path + "/dataset-" + dataset_id
+
+            #define the dataset directory path and dataset.json file path
+            dataset_json_path = datasets_directory_path + "/dataset-" + dataset_id + "/dataset.json"
+
+            #check if the dataset was downloaded, so there is its directory 
+            if os.path.exists(dataset_directory_path):
+
+                #check if the json file for the given dataset exists
+                if not os.path.exists(dataset_json_path): 
+
+                    print("Annotating dataset: "+dataset_id +" creating the json file")
+                    createDatasetJSONFile(dataset, dataset_directory_path)
+
+                else :
+
+                    corrupted = False
+
+                    #check that the file is corrected 
+                    try:
+                        dataset_json_file = open(dataset_json_path, "r")
+                        dataset_json = json.load(dataset_json_file,strict=False)
+                    except json.JSONDecodeError as e:
+                        corrupted = True
+                        os.remove(dataset_json_path)
+                    finally:
+                        dataset_json_file.close()
+                    
+                    if corrupted:
+                        print("Re-annotating dataset: "+dataset_id +" creating the json file")
+                        createDatasetJSONFile(dataset, dataset_directory_path)
+                    else:
+                        checkDownloadInfo(dataset, dataset_directory_path, dataset_json_path)
+
+            i+=1
+
+            if i%1000 == 0:
+                print("Annotated: "+str(i)+" datasets\n")
+
+    
 
     del(json_list)
     json_list_file.close()

@@ -1,4 +1,11 @@
-#This script will download all the datasets indicated in the datasets.json file provided in input
+'''
+This script will download all the datasets indicated in the datasets.json file provided in input
+For every dataset it will:
+* create the directory for the dataset
+* download all the dataset files in the directory
+* crete the json file with all the dataset meta-data included the download info (number of urls dowloaded and urls total number)
+If there are errors during the download we will log: dataset-id, URL and error of the problem
+'''
 
 import json 
 import requests
@@ -19,7 +26,7 @@ def readAndDownload(datasets_json_path, datasets_folder_path,  error_log_file, r
     f=open(datasets_json_path)
 
     #open the error log file
-    f_log=open(error_log_file, "w+")
+    f_log=open(error_log_file, "a")
 
     #load the json object present in the json datasets list
     data = json.load(f,strict=False)
@@ -44,8 +51,21 @@ def readAndDownload(datasets_json_path, datasets_folder_path,  error_log_file, r
             print("Processing row order dataset: "+ str(row))
             print("\nStart downloading dataset: "+dataset_id)
 
-            dataset_json = createDatasetJSONFile(dataset) 
+            dataset_json = createDatasetJSONObject(dataset) 
             download(dataset["download"], dataset_id, dataset_directory_path, dataset_json, f_log)
+
+            #save the dataset json object in the dataset.json file
+            #serializing dataset_json object
+            json_dict_object = json.dumps(dataset_json, indent=4)
+
+            #writing the json file
+            with open(dataset_directory_path+"/dataset.json", "w") as outfile:
+                outfile.write(json_dict_object)
+
+            #free memory by closing the dataset.json file
+            del json_dict_object
+            del dataset_json
+            outfile.close()
 
             print("\nEnd downloading dataset: "+dataset_id)
 
@@ -62,7 +82,7 @@ def readAndDownload(datasets_json_path, datasets_folder_path,  error_log_file, r
 This function will create the dataset.json file with the dataset meta-tags
 @param dataset json object of the dataset
 '''
-def createDatasetJSONFile(dataset):
+def createDatasetJSONObject(dataset):
 
     dataset_json = {}
 
@@ -172,17 +192,6 @@ def download(urls, dataset_id, dataset_directory_path, dataset_json, f_log):
 
     dataset_json["download_info"] = {"downloaded": downloaded_files, "total_URLS": len(urls)}
         
-    #serializing dataset_json object
-    json_dict_object = json.dumps(dataset_json, indent=4)
-
-    #writing the json file
-    with open(dataset_directory_path+"/dataset.json", "w") as outfile:
-        outfile.write(json_dict_object)
-
-    #free memory by closing the dataset.json file
-    del json_dict_object
-    del dataset_json
-    outfile.close()
 
 
 def main():

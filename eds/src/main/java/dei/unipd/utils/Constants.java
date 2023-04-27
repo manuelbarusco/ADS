@@ -1,5 +1,8 @@
 package dei.unipd.utils;
 
+import java.util.Arrays;
+import java.util.HashSet;
+
 /**
  * This class contains the path for retrieving the files in our machines
  */
@@ -59,4 +62,6 @@ public class Constants {
     public static float[] TFIDFContentBoostWeights = {0.3f, 1.0f, 0.6f, 0.3f};
     public static float[] LMDContentBoostWeights = {0.3f, 1.0f, 0.1f, 0.6f};
     public static float[] FSDMContentBoostWeights = {1.0f, 0.6f, 0.1f, 0.1f};
+
+    public static final HashSet<String> suffixes= new HashSet<>(Arrays.asList("rdf", "rdfs", "ttl", "owl", "n3", "nt", "jsonld", "xml", "ntriples"));
 }

@@ -36,10 +36,10 @@ This method will extract all the classes
 @param g graph where to extract
 @param json_dict json dictionary where to save the list
 '''
-def extractClasses(g,json_dict):
+def extractClassesWithRank(g,json_dict):
     query = """
     PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-    SELECT ?c
+    SELECT DISTINCT ?c
     WHERE {
         ?s a ?c .
     }"""
