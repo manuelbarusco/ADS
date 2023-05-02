@@ -16,7 +16,6 @@
 
 package dei.unipd.search;
 
-import analyze.ToucheAnalyzerQueries;
 import dei.unipd.analyze.AnalyzerUtil;
 import dei.unipd.parse.ParsedDataset;
 import org.apache.lucene.analysis.Analyzer;
@@ -262,6 +261,7 @@ public class DatasetSearcher {
         queryWeights.put(ParsedDataset.FIELDS.LITERALS, 2f);
         queryWeights.put(ParsedDataset.FIELDS.PROPERTIES, 2f);
 
+        //ACORDAR settings
         CharArraySet cas = AnalyzerUtil.loadStopList("nltk-stopwords.txt");
         final Analyzer a = new StandardAnalyzer(cas);
 
@@ -297,20 +297,14 @@ public class DatasetSearcher {
         final long start = System.currentTimeMillis();
 
         //fields that must be retrieved from the system
-        final Set<String> idField = new HashSet<>();
-        idField.add(ParsedDataset.FIELDS.ID);
+        final Set<String> fieldsToBeRetrieved = new HashSet<>();
+        fieldsToBeRetrieved.add(ParsedDataset.FIELDS.ID);
 
         BooleanQuery.Builder bq;
         Query q;
         TopDocs docs;
         ScoreDoc[] sd;
         String docID; //document ID
-
-        /* only for tuning the system, we write the results of the search in 2 different file
-         * runDefault: file that contains the results of the search in a Standard TREC format, it can be parse from trec_eval.
-         * We use this file for parameter tuning and test the different solutions.
-         * run: file that contains the results of the search with the sentence pairs that we have to submit to CLEF
-         */
 
         try (PrintWriter runDefault = new PrintWriter(Constants.runPath + "/" + runID + ".txt")) {
 
@@ -323,7 +317,7 @@ public class DatasetSearcher {
 
                 bq.add(qp.parse(QueryParserBase.escape(t.getValue(QUERY_FIELDS.TEXT))), BooleanClause.Occur.SHOULD);
 
-                //Check the description field is not null/empty/blank
+                //Check the text field is not null/empty/blank
                 String text = t.getValue(QUERY_FIELDS.TEXT);
                 if (text != null && !text.isEmpty() && !text.isBlank())
                     bq.add(qp.parse(QueryParserBase.escape(text)), BooleanClause.Occur.SHOULD);
@@ -339,7 +333,7 @@ public class DatasetSearcher {
 
                 for (int i = 0, n = sd.length; i < n; i++) {
 
-                    docID = reader.document(sd[i].doc, idField).get(ParsedDataset.FIELDS.ID);
+                    docID = reader.document(sd[i].doc, fieldsToBeRetrieved).get(ParsedDataset.FIELDS.ID);
                     if (!nod.contains(docID)) {
                         nod.add(docID);
                     }
@@ -366,6 +360,8 @@ public class DatasetSearcher {
     }
 
     /**
+     * TO BE DONE, it's only a template
+     *
      * Searches for the specified topics using:
      * <ol>
      * <li>Query Boosting with the specified weight parameters</li>
@@ -543,7 +539,7 @@ public class DatasetSearcher {
     }
 
     /**
-     * Searches for the specified queries
+     * Searches for the specified queries with boosting applied
      *
      * @throws IOException    if something goes wrong while searching.
      * @throws ParseException if something goes wrong while parsing topics.
@@ -564,13 +560,6 @@ public class DatasetSearcher {
         ScoreDoc[] sd;
         String docID; //document ID
 
-
-        /*
-         * only for tuning the system, we write the results of the search in 2 different file
-         * runDefault: file that contains the results of the search in a Standard TREC format,
-         * it can be parsed from trec_eval. We use this file for parameter tuning and test the different solutions.
-         * run: file that contains the results of the search with the sentence pairs that we have to submit to CLEF
-         */
         try (PrintWriter runDefault = new PrintWriter(Constants.runPath + "/" + runID + ".txt")) {
 
             for (QualityQuery t : topics) {

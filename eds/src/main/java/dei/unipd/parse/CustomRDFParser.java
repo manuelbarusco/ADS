@@ -1,9 +1,15 @@
 package dei.unipd.parse;
 
 import org.apache.commons.io.FilenameUtils;
+import org.apache.jena.query.Dataset;
 import org.apache.jena.rdf.model.*;
+import org.apache.jena.riot.RDFLanguages;
+import org.apache.jena.riot.RDFParser;
+import org.apache.jena.riot.RiotException;
+import org.apache.jena.riot.RiotParseException;
+import org.apache.jena.riot.system.ErrorHandlerFactory;
 
-import java.io.File;
+import java.io.*;
 import java.util.AbstractMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -13,9 +19,12 @@ import java.util.NoSuchElementException;
 /**
  * @author Manuel Barusco
  * This class use Apache Jena in order to read and extract info from RDF files
- * such as .ttl and .rdf files
+ * such as .ttl and .rdf files. The objects of this class will parse all the RDF file in their enteirness before returning
+ * every content.
+ * WARNING: if a file has a syntax error the parser will stop and it will throw the exception that Jena is throwing
+ * NB: This class is implemented as an iterator object
  */
-public class RDFParser implements Iterator<RDFParser.CustomTriple> {
+public class CustomRDFParser implements Iterator<CustomRDFParser.CustomTriple> {
     private Model graph;             //Jena object for the graph file
     private final String path;             //String with the path to the given file
     private StmtIterator iterator;   //Iterator over the triples
@@ -25,7 +34,7 @@ public class RDFParser implements Iterator<RDFParser.CustomTriple> {
      * @param path to the file
      * @throws IllegalArgumentException if the path provided points to a directory of if it doesn't exist
      */
-    public RDFParser(String path){
+    public CustomRDFParser(String path){
         File file = new File(path);
         //check for path
         if(!file.exists() || !file.isFile())
@@ -38,7 +47,6 @@ public class RDFParser implements Iterator<RDFParser.CustomTriple> {
         else
             graph = ModelFactory.createDefaultModel();
 
-        //create the model
         graph.read(path);
 
         SimpleSelector selector = new SimpleSelector(null, null, (RDFNode)null) {
@@ -114,8 +122,8 @@ public class RDFParser implements Iterator<RDFParser.CustomTriple> {
             //assign the correct type to the statement object
             if (object.isLiteral())
                 this.object = new AbstractMap.SimpleEntry<>("literals", stmt.getString());
-            else if (object.isURIResource())
-                this.object = new AbstractMap.SimpleEntry<>("entities", ((Resource) object).getLocalName());
+            else if (object.isURIResource() && predicate.equals("type"))
+                this.object = new AbstractMap.SimpleEntry<>("classes", ((Resource) object).getLocalName());
             else
                 this.object = new AbstractMap.SimpleEntry<>("entities", object.toString());
         }
@@ -137,7 +145,8 @@ public class RDFParser implements Iterator<RDFParser.CustomTriple> {
 
     //ONLY FOR DEBUG PURPOSE
     public static void main(String[] args){
-        RDFParser parser = new RDFParser("/home/manuel/Tesi/ACORDAR/Test/dataset-1/curso_sf_dump.ttl");
+        //RDFParser parser = new RDFParser("/home/manuel/Tesi/ACORDAR/Test/dataset-50/wappen.rdf");
+        CustomRDFParser parser = new CustomRDFParser("/media/manuel/500GBHDD/Tesi/Datasets/dataset-1/curso.ttl");
 
         int i = 0;
         while(parser.hasNext()){
@@ -150,7 +159,6 @@ public class RDFParser implements Iterator<RDFParser.CustomTriple> {
             } else {
                 break;
             }
-
         }
     }
 }

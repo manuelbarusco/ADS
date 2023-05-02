@@ -7,7 +7,7 @@ import org.apache.lucene.index.IndexOptions;
 import java.io.Reader;
 
 /**
- * Represents a {@link Field} for containing the content of a meta or content field
+ * Represents a {@link Field} for containing the content of a meta or content information
  * of the dataset
  *
  * @author Manuel Barusco (manuel.barusco@studenti.unipd.it)
@@ -28,16 +28,6 @@ public class DatasetField extends Field {
         DATASET_TYPE.setStoreTermVectors(true);
         DATASET_TYPE.setStoreTermVectorPositions(true);
         DATASET_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-    }
-
-    /**
-     * Create a new Dataset Field
-     *
-     * @param field the name of the field
-     * @param value the content of the field
-     */
-    public DatasetField(final String field, final Reader value) {
-        super(field, value, DATASET_TYPE);
     }
 
     /**

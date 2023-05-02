@@ -51,7 +51,7 @@ public class ParsedDataset {
         public static final String TITLE = "title";
 
         /**
-         * Field AUTHOR of the document
+         * Field AUTHOR(s) of the document
          */
         public static final String AUTHOR = "author";
 
@@ -84,6 +84,21 @@ public class ParsedDataset {
          * Field PROPERTIES of the document
          */
         public static final String PROPERTIES = "properties";
+
+        /**
+         * Constant value for the empty dataset (cannot be indexed)
+         */
+        public static final int EMPTY = 0;
+
+        /**
+         * Constant value for the partial dataset (at least one file can be indexed)
+         */
+        public static final int PARTIAL = 1;
+
+        /**
+         * Constant value for the full dataset (all the files can be indexed)
+         */
+        public static final int FULL = 2;
     }
 
 

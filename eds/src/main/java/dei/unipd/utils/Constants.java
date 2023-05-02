@@ -31,6 +31,9 @@ public class Constants {
      * Path to the log files
      */
     public static final String logPath = "/home/manuel/Tesi/ACORDAR/Log";
+    public static final String indexerLogFilePath = logPath+"/indexer_log.txt";
+    public static final String indexUpdateLogFilePath = logPath+"/update_index_log.txt";
+
 
     /**
      * Queries path

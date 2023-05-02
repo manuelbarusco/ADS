@@ -1,11 +1,9 @@
 package dei.unipd.search;
 
-import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import org.apache.commons.lang.StringUtils;
 import org.apache.lucene.benchmark.quality.QualityQuery;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -26,14 +24,13 @@ public class QueriesReader {
      * Returns a list of {@code QualityQuery} representing the queries
      *
      * @param input the {@code BufferedReader}
-     * @return a list of {@code QualityQuery}
+     * @return an array of {@code QualityQuery}
      * @throws IOException if something goes wrong
      */
     public QualityQuery[] readQueries(BufferedReader input) throws IOException {
 
         List<QualityQuery> queryList = new ArrayList<>();
 
-        //read while we have lines
         String line;
         while((line = input.readLine())!=null){
 

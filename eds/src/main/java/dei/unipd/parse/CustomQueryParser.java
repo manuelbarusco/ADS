@@ -23,7 +23,7 @@ public class CustomQueryParser {
     private final QueryParser qp;
 
     /**
-     * This map associates queries and weights for them
+     * This map associates the weights to the dataset fields for the boosting
      */
     private final Map<String, Float> queryWeights;
 
@@ -33,7 +33,7 @@ public class CustomQueryParser {
     private final String defaultField;
 
     /**
-     * The analyzer used
+     * The analyzer used in the parsing
      */
     private final Analyzer analyzer;
 
@@ -47,10 +47,10 @@ public class CustomQueryParser {
     public CustomQueryParser(Map<String, Float> queryWeights, Analyzer analyzer, String defaultField) {
 
         if (queryWeights == null) {
-            throw new NullPointerException("Hashmap given as parameter cannot be null");
+            throw new NullPointerException("Hashmap of weights given as parameter cannot be null");
         }
         if (queryWeights.size() <= 0) {
-            throw new NullPointerException("Hashmap given as a parameter must contain at least 1 element");
+            throw new NullPointerException("Hashmap of weights given as a parameter must contain at least 1 element");
         }
         if (analyzer == null) {
             throw new NullPointerException("Analyzer cannot be null");
@@ -75,7 +75,7 @@ public class CustomQueryParser {
     }
 
     /**
-     * Parse a single field using a basic implementation of {@code QueryParserBase} provided by Lucene
+     * Parse the string using a basic implementation of {@code QueryParserBase} provided by Lucene
      *
      * @param query The query to parse
      * @return a {@code Query} object
@@ -87,7 +87,7 @@ public class CustomQueryParser {
     }
 
     /**
-     * Parse multiple fields in a document using the implementation of {@code MultiFieldQueryParser} provided by the library
+     * Parse multiple fields in the query using the implementation of {@code MultiFieldQueryParser} provided by the library
      * by considering the input query
      *
      * @param query The query to parse
