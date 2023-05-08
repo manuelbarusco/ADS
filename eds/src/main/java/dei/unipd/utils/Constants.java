@@ -23,15 +23,18 @@ public class Constants {
     /**
      * Path to the index
      */
+
     public static final String indexPath = "/media/manuel/500GBHDD/Tesi/Index";
 
-    public static final String indexPathTest = "/home/manuel/Tesi/ACORDAR/Index";
+    public static final String indexPathSSD = "/home/manuel/Tesi/ACORDAR/Index";
 
     /**
      * Path to the log files
      */
     public static final String logPath = "/home/manuel/Tesi/ACORDAR/Log";
     public static final String indexerLogFilePath = logPath+"/indexer_log.txt";
+
+    public static final String indexerLogTestFilePath = logPath+"/indexer_test_log.txt";
     public static final String indexUpdateLogFilePath = logPath+"/update_index_log.txt";
 
 

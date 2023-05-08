@@ -18,6 +18,7 @@ package dei.unipd.search;
 
 import dei.unipd.analyze.AnalyzerUtil;
 import dei.unipd.parse.ParsedDataset;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -27,11 +28,15 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.LMDirichletSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.FSDirectory;
 import dei.unipd.parse.CustomQueryParser;
 import dei.unipd.utils.Constants;
+import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.util.ArrayUtil;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -92,6 +97,8 @@ public class DatasetSearcher {
      * The total elapsed time.
      */
     private long elapsedTime = Long.MIN_VALUE;
+
+    private Analyzer analyzer;
 
     /**
      * New searcher.
@@ -232,6 +239,7 @@ public class DatasetSearcher {
         }
 
         this.maxDatasetsRetrieved = maxDatasetsRetrieved;
+        this.analyzer = analyzer;
     }
 
     /**
@@ -243,33 +251,124 @@ public class DatasetSearcher {
     public static void main(String[] args) throws Exception {
 
         final String runID = Constants.runID;
-        final String indexPath = Constants.indexPath;
+        final String indexPath = Constants.indexPathSSD;
         final String datasetsPath = Constants.datasetsDirectoryPath;
         final String queriesPath = Constants.queryPath;
         final String runPath = Constants.runPath;
 
-        final int maxDocsRetrieved = 1000;
+        final int maxDocsRetrieved = 100;
 
         //setting the query boosting weights
         Map<String, Float> queryWeights = new HashMap<>();
-        queryWeights.put(ParsedDataset.FIELDS.TITLE, 4f);
-        queryWeights.put(ParsedDataset.FIELDS.DESCRIPTION, 2f);
-        queryWeights.put(ParsedDataset.FIELDS.AUTHOR, 2f);
-        queryWeights.put(ParsedDataset.FIELDS.TAGS, 2f);
-        queryWeights.put(ParsedDataset.FIELDS.CLASSES, 4f);
-        queryWeights.put(ParsedDataset.FIELDS.ENTITIES, 2f);
-        queryWeights.put(ParsedDataset.FIELDS.LITERALS, 2f);
-        queryWeights.put(ParsedDataset.FIELDS.PROPERTIES, 2f);
+
+        queryWeights.put(ParsedDataset.FIELDS.TITLE, 1f);
+        queryWeights.put(ParsedDataset.FIELDS.DESCRIPTION, 0.9f);
+        queryWeights.put(ParsedDataset.FIELDS.AUTHOR, 0.9f);
+        queryWeights.put(ParsedDataset.FIELDS.TAGS, 0.6f);
+        queryWeights.put(ParsedDataset.FIELDS.CLASSES, 0.2f);
+        queryWeights.put(ParsedDataset.FIELDS.ENTITIES, 0.3f);
+        queryWeights.put(ParsedDataset.FIELDS.LITERALS, 0.1f);
+        queryWeights.put(ParsedDataset.FIELDS.PROPERTIES, 0.1f);
 
         //ACORDAR settings
-        CharArraySet cas = AnalyzerUtil.loadStopList("nltk-stopwords.txt");
-        final Analyzer a = new StandardAnalyzer(cas);
+        CharArraySet cas = AnalyzerUtil.loadStopList("/home/manuel/Tesi/EDS/EDS/eds/src/main/resources/stoplists/nltk-stopwords.txt");
+        final Analyzer a = new StandardAnalyzer();
 
-        final Similarity sim = new LMDirichletSimilarity(1800);
+        String[] metaFields = {ParsedDataset.FIELDS.TITLE, ParsedDataset.FIELDS.DESCRIPTION, ParsedDataset.FIELDS.AUTHOR, ParsedDataset.FIELDS.TAGS};
+        String[] contentFields = {ParsedDataset.FIELDS.CLASSES, ParsedDataset.FIELDS.ENTITIES, ParsedDataset.FIELDS.LITERALS, ParsedDataset.FIELDS.PROPERTIES};
+        String[] allFields = ArrayUtils.addAll(metaFields, contentFields);
 
-        DatasetSearcher s = new DatasetSearcher(a, sim, indexPath, queriesPath, 50, runID, runPath, maxDocsRetrieved, queryWeights);
+        //String[] runs = {"-BM25-boost", "-LMD-boost", "-TF-IDF-boost", "-BM25[m]","-BM25[c]", "-BM25[m+c]", "-LMD[m]","-LMD[c]", "-LMD[m+c]", "-TF-IDF[m]","-TF-IDF[c]", "-TF-IDF[m+c]"};
+        String[] runs = {"-BM25-nostop"};
 
-        s.search();
+        for(String run:runs){
+            switch (run){
+                case "-BM25-nostop" -> {
+                    Similarity sim = new BM25Similarity();
+                    DatasetSearcher s = new DatasetSearcher(a, sim, indexPath, queriesPath, 50, runID+run, runPath, maxDocsRetrieved, queryWeights);
+                    System.out.println("Searching with: "+run);
+                    s.search(allFields);
+                }
+                case "-BM25-boost" -> {
+                    Similarity sim = new BM25Similarity();
+                    DatasetSearcher s = new DatasetSearcher(a, sim, indexPath, queriesPath, 50, runID+run, runPath, maxDocsRetrieved, queryWeights);
+                    System.out.println("Searching with: "+run);
+                    s.searchBoosted();
+                }
+                case "-LMD-boost" -> {
+                    Similarity sim = new LMDirichletSimilarity();
+                    DatasetSearcher s = new DatasetSearcher(a, sim, indexPath, queriesPath, 50, runID+run, runPath, maxDocsRetrieved, queryWeights);
+                    System.out.println("Searching with: "+run);
+                    s.searchBoosted();
+                }
+                case "-TF-IDF-boost" -> {
+                    Similarity sim = new ClassicSimilarity();
+                    DatasetSearcher s = new DatasetSearcher(a, sim, indexPath, queriesPath, 50, runID+run, runPath, maxDocsRetrieved, queryWeights);
+                    System.out.println("Searching with: "+run);
+                    s.searchBoosted();
+                }
+                case "-BM25[m]" -> {
+                    Similarity sim = new BM25Similarity();
+                    DatasetSearcher s = new DatasetSearcher(a, sim, indexPath, queriesPath, 50, runID+run, runPath, maxDocsRetrieved, queryWeights);
+                    System.out.println("Searching with: "+run);
+                    s.search(metaFields);
+                }
+                case "-BM25[c]" -> {
+                    Similarity sim = new BM25Similarity();
+                    DatasetSearcher s = new DatasetSearcher(a, sim, indexPath, queriesPath, 50, runID+run, runPath, maxDocsRetrieved, queryWeights);
+                    System.out.println("Searching with: "+run);
+                    s.search(contentFields);
+                }
+                case "-BM25[m+c]" -> {
+                    Similarity sim = new BM25Similarity();
+                    DatasetSearcher s = new DatasetSearcher(a, sim, indexPath, queriesPath, 50, runID+run, runPath, maxDocsRetrieved, queryWeights);
+                    System.out.println("Searching with: "+run);
+                    s.search(allFields);
+                }
+                case "-TF-IDF[m]" -> {
+                    Similarity sim = new ClassicSimilarity();
+                    DatasetSearcher s = new DatasetSearcher(a, sim, indexPath, queriesPath, 50, runID+run, runPath, maxDocsRetrieved, queryWeights);
+                    System.out.println("Searching with: "+run);
+                    s.search(metaFields);
+                }
+                case "-TF-IDF[c]" -> {
+                    Similarity sim = new ClassicSimilarity();
+                    DatasetSearcher s = new DatasetSearcher(a, sim, indexPath, queriesPath, 50, runID+run, runPath, maxDocsRetrieved, queryWeights);
+                    System.out.println("Searching with: "+run);
+                    s.search(contentFields);
+                }
+                case "-TF-IDF[m+c]" -> {
+                    Similarity sim = new ClassicSimilarity();
+                    DatasetSearcher s = new DatasetSearcher(a, sim, indexPath, queriesPath, 50, runID+run, runPath, maxDocsRetrieved, queryWeights);
+                    System.out.println("Searching with: "+run);
+                    s.search(allFields);
+                }
+                case "-LMD[m]" -> {
+                    Similarity sim = new LMDirichletSimilarity();
+                    DatasetSearcher s = new DatasetSearcher(a, sim, indexPath, queriesPath, 50, runID+run, runPath, maxDocsRetrieved, queryWeights);
+                    System.out.println("Searching with: "+run);
+                    s.search(metaFields);
+                }
+                case "-LMD[c]" -> {
+                    Similarity sim = new LMDirichletSimilarity();
+                    DatasetSearcher s = new DatasetSearcher(a, sim, indexPath, queriesPath, 50, runID+run, runPath, maxDocsRetrieved, queryWeights);
+                    System.out.println("Searching with: "+run);
+                    s.search(contentFields);
+                }
+                case "-LMD[m+c]" -> {
+                    Similarity sim = new LMDirichletSimilarity();
+                    DatasetSearcher s = new DatasetSearcher(a, sim, indexPath, queriesPath, 50, runID+run, runPath, maxDocsRetrieved, queryWeights);
+                    System.out.println("Searching with: "+run);
+                    s.search(allFields);
+                }
+
+
+            }
+
+
+        }
+
+
 
     }
 
@@ -288,8 +387,9 @@ public class DatasetSearcher {
      *
      * @throws IOException    if something goes wrong while searching.
      * @throws ParseException if something goes wrong while parsing topics.
+     * @param fields
      */
-    public void search() throws IOException, ParseException {
+    public void search(String[] fields) throws IOException, ParseException {
 
         System.out.printf("%n#### Start searching ####%n");
 
@@ -315,12 +415,18 @@ public class DatasetSearcher {
                 //original query
                 bq = new BooleanQuery.Builder();
 
-                bq.add(qp.parse(QueryParserBase.escape(t.getValue(QUERY_FIELDS.TEXT))), BooleanClause.Occur.SHOULD);
-
                 //Check the text field is not null/empty/blank
                 String text = t.getValue(QUERY_FIELDS.TEXT);
-                if (text != null && !text.isEmpty() && !text.isBlank())
-                    bq.add(qp.parse(QueryParserBase.escape(text)), BooleanClause.Occur.SHOULD);
+
+                for(String field : fields){
+                    bq.add(
+                            new BooleanClause(
+                                    new QueryParser(field, analyzer).parse(
+                                            QueryParser.escape(text)
+                                    ), BooleanClause.Occur.SHOULD
+                            )
+                    );
+                }
 
                 q = bq.build();
 
@@ -564,7 +670,7 @@ public class DatasetSearcher {
 
             for (QualityQuery t : topics) {
 
-                System.out.printf("Searching for topic %s.%n", t.getQueryID());
+                //System.out.printf("Searching for topic %s.%n", t.getQueryID());
 
                 //Execute the original query
                 q = qp.multipleFieldsParse(t.getValue(QUERY_FIELDS.TEXT));
@@ -608,9 +714,9 @@ public class DatasetSearcher {
     }
 
     /**
-     * The fields of the typical TREC topics.
+     * The fields of the TREC topics.
      *
-     * @author Nicola Rizzetto
+     * @author Manuel Barusco
      * @version 1.00
      * @since 1.00
      */

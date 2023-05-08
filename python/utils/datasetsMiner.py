@@ -1,201 +1,216 @@
 #This file will extract all the useful information from the datasets
 
 import pathlib
+import rdflib
 from rdflib import Graph
 from rdflib.namespace import RDF
 import json
 import os
+import logging
 
-'''
-FOR FUTURE PURPOSE 
 
-def extractClasses(g):
-    query = """
-    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-    SELECT ?b
+
+
+def getLiterals(graph) -> list:
+    q = """
+    SELECT ?literal { 
+        ?s ?p ?literal 
+        FILTER isLiteral(?literal)
+    }
+    """
+    match = graph.query(q)
+
+    literals = list()
+
+    for item in match:
+        literals.append(str(item[0]))
+
+    return literals
+
+
+def getClasses(graph) -> list:
+    q = """
+    SELECT ?class
     WHERE {
-        ?a a ?b .
-    }"""
-    
-    classes = []
+        ?s a ?class .
+    }
+    """
+    match = graph.query(q)
 
-    qres = g.query(query)
-    for row in qres:
-        i = len(row.b)
-        while i > 0:
-            i -= 1
-            if(row.b[i]=="#" or row.b[i]=="/"):
-                break 
-        classes.append(row.b[i+1:len(row.b)])
-    
+    classes = list()
+
+    for item in match:
+        classes.append(item[0])
+
     return classes
-'''
-
-'''
-This method will extract all the classes
-@param g graph where to extract
-@param json_dict json dictionary where to save the list
-'''
-def extractClassesWithRank(g,json_dict):
-    query = """
-    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-    SELECT DISTINCT ?c
-    WHERE {
-        ?s a ?c .
-    }"""
-
-    qres = g.query(query)
-    classes = []
-    for row in qres:
-        classes.append(row.c)
-    
-    if "classes" in json_dict:
-        json_dict["classes"].extend(classes)
-    else: 
-        json_dict["classes"]=classes
 
 
-'''
-This method will extract all the entities
-@param g graph where to extract
-@param json_dict json dictionary where to save the list
-'''
-def extractEntities(g,json_dict):
-    query = """
-    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+def getEntities(graph) -> list:
+    q = """
     SELECT ?s
     WHERE {
-        ?s a ?c .
-    }"""
-    
-    entities = []
-    qres = g.query(query)
-    for row in qres:
-        entities.append(row.s)
-    
-    if "entities" in json_dict:
-        json_dict["entities"].extend(entities)
-    else: 
-        json_dict["entities"]=entities
+        ?s a ?class .
+    }
+    """
+    match = graph.query(q)
 
-    
+    entities = list()
 
-'''
-This method will extract all the literals
-@param g graph where to extract
-@param json_dict json dictionary where to save the list
-'''
-def extractLiterals(g,json_dict):
-    query = """
-    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-    SELECT ?l
-    WHERE {
-        ?s ?p ?l .
-        FILTER(isLiteral(?l))
-    }"""
-    
-    literals = []
-    qres = g.query(query)
-    for row in qres:
-        literals.append(row.l)
-    
-    if "literals" in json_dict:
-        json_dict["literals"].extend(literals)
-    else: 
-        json_dict["literals"]=literals
+    for item in match:
+        entities.append(item[0])
+
+    return entities
 
 
-'''
-This method will extract all the properties
-@param g graph where to extract
-@param json_dict json dictionary where to save the list
-'''
-def extractProperties(g,json_dict):
-    query = """
-    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+def getProperties(graph) -> list:
+    q = """
     SELECT ?p
     WHERE {
         ?s ?p ?o .
-    }"""
+    }
+    """
+    match = graph.query(q)
+
+    properties = list()
+
+    for item in match:
+        properties.append(item[0])
+
+    return properties
+
+def getJenaProblemFiles(f_indexer):
     
-    properties = []
-    qres = g.query(query)
-    for row in qres:
-        properties.append(row.p)
-    
-    if "properties" in json_dict:
-        json_dict["properties"].extend(properties)
-    else: 
-        json_dict["properties"]=properties
+    files = list()
+
+    last_dataset = "" 
+    while True: 
+
+        line1 = f_indexer.readline()
+        if not line1:
+            break
+
+        dataset = line1.split("Dataset: ")[1].strip("\n")
+
+        line2 = f_indexer.readline()
+        
+        file = line2.split("File: ")[1].strip("\n")
+
+        line3 = f_indexer.readline()
+
+        files.append(tuple((dataset, file)))
+
+    return files
+
+
+def mineFile(datasets_directory_path, dataset, file, f_log):
+
+    dataset_path = datasets_directory_path+"/"+dataset
+
+    file_path = dataset_path+"/"+file
+
+    g = Graph()
+
+    if (os.path.getsize(file_path) / (1024 ** 2)) < 300: 
+        try: 
+            g.parse(file_path)
+
+            #extract all the info
+
+            classes = getClasses(g)
+            entities = getEntities(g)
+            literals = getLiterals(g)
+            properties = getProperties(g)
+
+            #¢rete a json file for the problem file
+            json_file_name = file.replace(".","_")
+
+            print(json_file_name)
+
+            json_file = open(dataset_path+"/"+json_file_name+"-scriptmined.json","w", encoding="utf-8")
+            json_dict = {}
+
+            json_dict["classes"] = classes
+            json_dict["entities"] = entities
+            json_dict["literals"] = literals
+            json_dict["properties"] = properties
+
+            json.dump(json_dict, json_file, ensure_ascii=False, indent=4)
+        
+            del(json_dict)
+            json_file.close()
+            del(g)
+            del(classes)
+            del(entities)
+            del(literals)
+            del(properties)
+            
+
+        except rdflib.exceptions.ParserError as e:  
+            f_log.write("Dataset: "+dataset+"\nFile: "+file+"\nError: "+str(e)+"\n")
+        except Exception as e :
+            f_log.write("Dataset: "+dataset+"\nFile: "+file+"\nError: "+str(e)+"\n")
+    else :
+        f_log.write("Dataset: "+dataset+"\nFile: "+file+"\nError: Bigger than 300MB\n")
+
+def clean():
+
+    datasets_directory_path = "/media/manuel/500GBHDD/Tesi/Datasets"                                #path to the folder of the downloaded datasets
+    error_log_file_path = "/home/manuel/Tesi/ACORDAR/Log/miner_error_log.txt"                   #path to the error log file
+    indexer_log_file_path ="/home/manuel/Tesi/ACORDAR/Log/indexer_log.txt"                  #path to the indexer error log file
+
+    #open the indexer error log file
+    f_indexer = open(indexer_log_file_path, "r")
+
+    #get the files that are not parsed by jena for rdf syntax problems
+    files_datasets = getJenaProblemFiles(f_indexer)
+
+    tot = 4734
+    i = 1
+
+    for dataset, file in files_datasets:
+
+        #remove the file
+        json_file_name = file.replace(".","_")
+        if os.path.exists(datasets_directory_path+"/"+dataset+"/"+json_file_name+".json"):
+            os.remove(datasets_directory_path+"/"+dataset+"/"+json_file_name+".json")
+
+
+    f_indexer.close()
+
 
 
 def main():
-    datasets_directory_path = "/home/manuel/Tesi/ACORDAR/Test"                             #path to the folder of the downloaded datasets
-    error_log_file = "/home/manuel/Tesi/ACORDAR/Log/miner_error_log.txt"                   #path to the error log file
+    datasets_directory_path = "/media/manuel/500GBHDD/Tesi/Datasets"                                #path to the folder of the downloaded datasets
+    error_log_file_path = "/home/manuel/Tesi/ACORDAR/Log/miner_error_log.txt"                   #path to the error log file
+    indexer_log_file_path ="/home/manuel/Tesi/ACORDAR/Log/indexer_log.txt"                  #path to the indexer error log file
 
-    suffixes = [".rdf", ".ttl", ".owl", ".n3", ".nt"]
+    suffixes = [".rdf", ".ttl", ".owl", ".n3", ".nt", ".jsonld", ".nq", ".trig", ".trix"]
 
-    #open the error log file
-    f_log=open(error_log_file, "w+")
+    logging.getLogger("rdflib").setLevel(logging.ERROR)
 
-    for folder in os.scandir(datasets_directory_path):
+    #open the error log file of the miner
+    f_log=open(error_log_file_path, "w+")
 
-        print("Start mining "+folder.name)
+    #open the indexer error log file
+    f_indexer = open(indexer_log_file_path, "r")
 
-        #read the dataset.json file previously prodcued by the downloader
+    #get the files that are not parsed by jena for rdf syntax problems
+    files_datasets = getJenaProblemFiles(f_indexer)
 
-        dataset_json_file = open(folder.path+"/dataset.json", "r")
-        dataset_json = json.load(dataset_json_file,strict=False)
-        dataset_json_file.close()
+    tot = 4734
+    i = 1
 
-        #resume mechanism: check the mined = true field in the dataset.json
+    for dataset, file in files_datasets:
 
-        if not dataset_json["mined"]:
-
-            for file in os.scandir(folder):
-
-                #consider only files with the correct extension
-
-                if pathlib.Path(file.path).suffix in suffixes:
-
-                    print("Considering: "+file.path)
-
-                    try:
-                        g = Graph()
-                        g.parse(file.path)
-
-                        extractClasses(g, dataset_json)
-                        extractLiterals(g,dataset_json)
-                        extractProperties(g,dataset_json)
-                        extractEntities(g,dataset_json)
-
-                        #free memory            
-                        del g
-                    except Exception as e: 
-                        print("Failing parsing file: "+file.path)
-                        f_log.write("Mining Dataset: "+folder.name+"\nFailing parsing file: "+file.path)
-
-            # Set mined to true for indicating that the dataset is mined
-            dataset_json["mined"] = True
-
-            # Serializing json_dict
-            json_dict_object = json.dumps(dataset_json, indent=4)
-
-            # Writing to sample.json_dict
-            outfile = open(folder.path+"/dataset.json", "w")
-            outfile.write(json_dict_object)
-
-            #free memory 
-            del json_dict_object
-            del dataset_json
-            outfile.close()
-
-            print("End mining "+folder.name)
+        mineFile(datasets_directory_path, dataset, file, f_log)
+        i+=1
+        print(str(i)+" over "+str(tot))
 
     f_log.close()
+    f_indexer.close()
 
 if __name__ == "__main__":
-    main() 
+    clean() 
 
 
 

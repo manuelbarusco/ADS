@@ -28,19 +28,26 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.*;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.FSDirectory;
 import dei.unipd.utils.Constants;
+import org.apache.lucene.search.*;
 
 import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 
 import dei.unipd.analyze.AnalyzerUtil;
+
+import javax.print.Doc;
 
 /**
  * Indexer object for indexing the ACORDAR datasets
@@ -337,10 +344,6 @@ public class DatasetIndexer {
                 } else {
                     //index the datasets content
 
-                    bytesCount += file.getTotalSpace();
-
-                    filesCount += 1;
-
                     StreamRDFParser parser;
                     try {
                         parser = new StreamRDFParser(file.getPath().toString());
@@ -369,12 +372,87 @@ public class DatasetIndexer {
                         //remove from the exception message all the \n characters that can break the message
                         String errorMessage = e.getMessage().replace("\n", " ");
                         logFile.write("Dataset: "+directory.getName()+"\nFile: "+file.getName()+"\nError: "+ errorMessage+"\n");
+                        logFile.flush();
                         errors++;
                         indexableFiles--;
                     } catch (OutOfMemoryError e) {
                         logFile.write("Dataset: "+directory.getName()+"\nFile: "+file.getName()+"\nError: JavaOutOfMemory\n");
+                        logFile.flush();
                         errors++;
                         indexableFiles--;
+                    }
+
+                    bytesCount += file.getTotalSpace();
+
+                    filesCount += 1;
+
+                }
+            } else if (file.getName().contains("-scriptmined")){
+                //creating the JSON Reader
+                JsonReader reader = null;
+                try {
+                    reader = new JsonReader(new FileReader(file.getPath()));
+                } catch (FileNotFoundException e) {
+                    throw new RuntimeException("Cannot find the json file at path: "+file.getPath());
+                }
+
+                JsonToken jsonToken;
+
+                //loop while we not reach the end of the document
+                while ((jsonToken = reader.peek()) != JsonToken.END_DOCUMENT) {
+                    if (jsonToken == JsonToken.BEGIN_OBJECT) {
+                        reader.beginObject();
+                    } else if (jsonToken == JsonToken.END_OBJECT) {
+                        reader.endObject();
+                    } else if (jsonToken == JsonToken.BEGIN_ARRAY) {
+                        reader.beginArray();
+                    } else if (jsonToken == JsonToken.END_ARRAY) {
+                        reader.endArray();
+                    } else if (jsonToken == JsonToken.NAME) {
+
+                        //Add the datasets contents
+
+                        String name = reader.nextName();
+                        if (Objects.equals(name, "classes")) {
+                            reader.beginArray();
+                            while ((jsonToken = reader.peek()) != JsonToken.END_ARRAY) {
+                                if (jsonToken == JsonToken.STRING) {
+                                    document.add(new DatasetField(ParsedDataset.FIELDS.CLASSES, reader.nextString()));
+                                }
+                            }
+                            reader.endArray();
+                        }
+                        if (Objects.equals(name, "entities")) {
+                            reader.beginArray();
+                            while ((jsonToken = reader.peek()) != JsonToken.END_ARRAY) {
+                                if (jsonToken == JsonToken.STRING) {
+                                    document.add(new DatasetField(ParsedDataset.FIELDS.ENTITIES, reader.nextString()));
+                                }
+                            }
+                            reader.endArray();
+                        }
+                        if (Objects.equals(name, "literals")) {
+                            reader.beginArray();
+                            while ((jsonToken = reader.peek()) != JsonToken.END_ARRAY) {
+                                if (jsonToken == JsonToken.STRING) {
+                                    document.add(new DatasetField(ParsedDataset.FIELDS.LITERALS, reader.nextString()));
+                                }
+                            }
+                            reader.endArray();
+                        }
+                        if (Objects.equals(name, "properties")) {
+                            reader.beginArray();
+                            while ((jsonToken = reader.peek()) != JsonToken.END_ARRAY) {
+                                if (jsonToken == JsonToken.STRING) {
+                                    document.add(new DatasetField(ParsedDataset.FIELDS.PROPERTIES, reader.nextString()));
+                                }
+                            }
+                            reader.endArray();
+                        }
+                    } else if (jsonToken == JsonToken.STRING) {
+                        reader.nextString();
+                    } else if (jsonToken == JsonToken.BOOLEAN) {
+                        reader.nextBoolean();
                     }
                 }
             }
@@ -448,7 +526,7 @@ public class DatasetIndexer {
         System.out.printf("%n#### Start indexing ####%n");
 
         //open the error log file
-        FileWriter logFile = new FileWriter(Constants.logPath+"/indexer_log.txt", true);
+        FileWriter logFile = new FileWriter(Constants.indexerLogFilePath, true);
 
         File[] datasetsDirectories = new File(datasetsDir.toString()).listFiles();
 
@@ -456,7 +534,7 @@ public class DatasetIndexer {
 
         //list of datasets that have to be skipped for some reasons
         HashSet<String> pass = new HashSet<>();
-
+        pass.add("dataset-11580");
 
         for (File directory: datasetsDirectories) {
 
@@ -479,7 +557,7 @@ public class DatasetIndexer {
                 }
 
                 // print progress every 10000 indexed documents, only for debug purpose
-                if (datasetsCount % 100 == 0) {
+                if (datasetsCount % 1000 == 0) {
                     System.out.printf("%d document(s) %d error(s) in parsing (%d files, %d Mbytes) indexed in %d seconds.%n",
                             datasetsCount, errors, filesCount, bytesCount / MBYTE,
                             (System.currentTimeMillis() - start) / 1000);
@@ -504,6 +582,157 @@ public class DatasetIndexer {
     }
 
     /**
+     * Method for index update
+     *
+     * @param documentID id of the document (in the collection, not Lucene internal index)
+     * @param jsonMinedFilePath path to the file json with the mined info from the problematic file
+     */
+    public void updateDocument(String documentID, String jsonMinedFilePath) throws IOException {
+
+        //get the given document
+
+        Query searchQuery = new TermQuery(new Term(ParsedDataset.FIELDS.ID , documentID));
+        IndexReader indexReader;
+        try {
+            indexReader = DirectoryReader.open(FSDirectory.open(indexDir));
+        } catch (IOException e) {
+            throw new IllegalArgumentException(String.format("Unable to create the index reader for directory %s: %s.",
+                    indexDir.toAbsolutePath(), e.getMessage()), e);
+        }
+
+        IndexSearcher searcher = new IndexSearcher(indexReader);
+
+        TopDocs result = searcher.search(searchQuery ,1);
+
+        ScoreDoc[] docs = result.scoreDocs;
+
+        Document doc = searcher.doc(docs[0].doc);
+
+        indexReader.close();
+
+        //open the json file
+
+        //creating the JSON Reader
+        JsonReader reader = null;
+        try {
+            reader = new JsonReader(new FileReader(jsonMinedFilePath));
+        } catch (FileNotFoundException e) {
+            throw new RuntimeException("Cannot find the json file at path: "+jsonMinedFilePath);
+        }
+
+        JsonToken jsonToken;
+
+        //loop while we not reach the end of the document
+        while ((jsonToken = reader.peek()) != JsonToken.END_DOCUMENT) {
+            if (jsonToken == JsonToken.BEGIN_OBJECT) {
+                reader.beginObject();
+            } else if (jsonToken == JsonToken.END_OBJECT) {
+                reader.endObject();
+            } else if (jsonToken == JsonToken.BEGIN_ARRAY) {
+                reader.beginArray();
+            } else if (jsonToken == JsonToken.END_ARRAY) {
+                reader.endArray();
+            } else if (jsonToken == JsonToken.NAME) {
+
+                //Add the datasets contents and meta-contents to the lucene document
+
+                String name = reader.nextName();
+                if (Objects.equals(name, "classes")) {
+                    reader.beginArray();
+                    while ((jsonToken = reader.peek()) != JsonToken.END_ARRAY) {
+                        if (jsonToken == JsonToken.STRING) {
+                            writer.updateDocValues(new Term(ParsedDataset.FIELDS.ID, documentID), new DatasetField(ParsedDataset.FIELDS.CLASSES, reader.nextString()));
+                        }
+                    }
+                    reader.endArray();
+                }
+                if (Objects.equals(name, "entities")) {
+                    reader.beginArray();
+                    while ((jsonToken = reader.peek()) != JsonToken.END_ARRAY) {
+                        if (jsonToken == JsonToken.STRING) {
+                            writer.updateDocValues(new Term(ParsedDataset.FIELDS.ID, documentID), new DatasetField(ParsedDataset.FIELDS.ENTITIES, reader.nextString()));
+                        }
+                    }
+                    reader.endArray();
+                }
+                if (Objects.equals(name, "literals")) {
+                    reader.beginArray();
+                    while ((jsonToken = reader.peek()) != JsonToken.END_ARRAY) {
+                        if (jsonToken == JsonToken.STRING) {
+                            writer.updateDocValues(new Term(ParsedDataset.FIELDS.ID, documentID), new DatasetField(ParsedDataset.FIELDS.LITERALS, reader.nextString()));
+                        }
+                    }
+                    reader.endArray();
+                }
+                if (Objects.equals(name, "properties")) {
+                    reader.beginArray();
+                    while ((jsonToken = reader.peek()) != JsonToken.END_ARRAY) {
+                        if (jsonToken == JsonToken.STRING) {
+                            writer.updateDocValues(new Term(ParsedDataset.FIELDS.ID, documentID), new DatasetField(ParsedDataset.FIELDS.PROPERTIES, reader.nextString()));
+                        }
+                    }
+                    reader.endArray();
+                }
+            } else if (jsonToken == JsonToken.STRING) {
+                reader.nextString();
+            } else if (jsonToken == JsonToken.BOOLEAN) {
+                reader.nextBoolean();
+            }
+        }
+
+        writer.addDocument(doc);
+
+    }
+
+    /**
+     * This method update the index after the RDFLib parsing and mining
+     */
+    public void updateIndex() throws IOException {
+
+        //intialize the IndexWriter Object
+        try {
+            writer = new IndexWriter(FSDirectory.open(indexDir), iwc);
+        } catch (IOException e) {
+            throw new IllegalArgumentException(String.format("Unable to create the index writer in directory %s: %s.", indexDir.toAbsolutePath().toString(), e.getMessage()), e);
+        }
+
+        System.out.printf("%n#### Start indexing ####%n");
+
+        File[] datasetsDirectories = new File(datasetsDir.toString()).listFiles();
+
+        //list of datasets that have to be skipped for some reasons
+        HashSet<String> pass = new HashSet<>();
+        pass.add("dataset-11580");
+
+        for (File directory: datasetsDirectories) {
+
+            //check the resume index and skip the datasets with problem files
+            if(!pass.contains(directory.getName())) {
+
+                File[] files = directory.listFiles();
+
+                for (File file: files){
+                    if(file.getName().contains("-scriptmined")){
+                        String id=directory.getName().split("-")[1];
+                        updateDocument(id,file.getPath());
+                        datasetsCount ++;
+                        System.out.println("Indexed dataset: "+id);
+                    }
+                }
+            }
+        }
+
+        //indexer commit and resource release
+        writer.close();
+
+        System.out.printf("%d document(s) (%d files, %d Mbytes) indexed in %d seconds.%n", datasetsCount, filesCount,
+                bytesCount / MBYTE, (System.currentTimeMillis() - start) / 1000);
+
+        System.out.printf("#### Indexing complete ####%n");
+
+    }
+
+    /**
      * ONLY FOR DEBUGGING PURPOSE
      *
      * @param args command line arguments.
@@ -518,7 +747,7 @@ public class DatasetIndexer {
         final int expectedDatasets = 4;
         final String charsetName = "ISO-8859-1";
 
-        CharArraySet cas = AnalyzerUtil.loadStopList("nltk-stopwords.txt");
+        CharArraySet cas = AnalyzerUtil.loadStopList("/home/manuel/Tesi/EDS/EDS/eds/src/main/resources/stoplists/nltk-stopwords.txt");
         final Analyzer a = new StandardAnalyzer(cas);
 
         //final Similarity sim = new LMDirichletSimilarity(1800);

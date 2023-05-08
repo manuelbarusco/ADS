@@ -87,7 +87,17 @@ public class StreamRDFParser implements Iterator<StreamRDFParser.CustomTriple> {
         public CustomTriple(Triple triple) {
             predicate = triple.getPredicate().getLocalName();
 
-            String subjectValue = triple.getSubject().getLocalName();
+            String subjectValue;
+            if(triple.getSubject().isURI())
+                subjectValue = triple.getSubject().getLocalName();
+            else
+                subjectValue = triple.getSubject().toString();
+
+            String objectValue;
+            if(triple.getObject().isURI())
+                objectValue = triple.getObject().getLocalName();
+            else
+                objectValue = triple.getObject().toString();
 
             Node object = triple.getObject();
 
@@ -97,7 +107,7 @@ public class StreamRDFParser implements Iterator<StreamRDFParser.CustomTriple> {
                     this.subject = new AbstractMap.SimpleEntry<>(ParsedDataset.FIELDS.PROPERTIES, subjectValue);
                 if (object.toString().equals("Class"))
                     this.subject = new AbstractMap.SimpleEntry<>(ParsedDataset.FIELDS.CLASSES, subjectValue);
-                if (predicate.equals("type") && !object.toString().equals("Class") && !object.toString().equals("Property"))
+                if (!object.toString().equals("Class") && !object.toString().equals("Property"))
                     this.subject = new AbstractMap.SimpleEntry<>(ParsedDataset.FIELDS.ENTITIES, subjectValue);
             } else {
                 this.subject = new AbstractMap.SimpleEntry<>(ParsedDataset.FIELDS.ENTITIES, subjectValue);
@@ -105,11 +115,10 @@ public class StreamRDFParser implements Iterator<StreamRDFParser.CustomTriple> {
 
             //assign the correct type to the statement object
             if (object.isLiteral())
-                this.object = new AbstractMap.SimpleEntry<>(ParsedDataset.FIELDS.LITERALS, object.toString());
-            else if (object.isURI() && predicate.equals("type"))
-                this.object = new AbstractMap.SimpleEntry<>(ParsedDataset.FIELDS.CLASSES, object.getLocalName());
+                this.object = new AbstractMap.SimpleEntry<>(ParsedDataset.FIELDS.LITERALS ,object.getLiteral().toString());
             else
-                this.object = new AbstractMap.SimpleEntry<>(ParsedDataset.FIELDS.ENTITIES, object.getLocalName());
+                this.object = new AbstractMap.SimpleEntry<>(ParsedDataset.FIELDS.ENTITIES, objectValue);
+
         }
 
         public Map.Entry<String, String> getSubject() {
@@ -130,11 +139,11 @@ public class StreamRDFParser implements Iterator<StreamRDFParser.CustomTriple> {
     //ONLY FOR DEBUG PURPOSE
     public static void main(String[] args){
         //RDFParser parser = new RDFParser("/home/manuel/Tesi/ACORDAR/Test/dataset-50/wappen.rdf");
-        StreamRDFParser parser = new StreamRDFParser("/media/manuel/500GBHDD/Tesi/Datasets/dataset-1/curso.ttl");
+        StreamRDFParser parser = new StreamRDFParser("/home/manuel/Tesi/ACORDAR/Test/dataset-1/curso.ttl");
 
         int i = 0;
         while(parser.hasNext()){
-            if(i<100){
+            if(true){
                 StreamRDFParser.CustomTriple triple = parser.next();
                 System.out.print(triple.getSubject().getValue()+":"+triple.getSubject().getKey()+"     ");
                 System.out.print(triple.getPredicate()+"     ");

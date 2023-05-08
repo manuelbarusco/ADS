@@ -10,7 +10,7 @@
 
   <properties>
     <lucene.version>9.0.0</lucene.version>
-    <java.version>20</java.version>
+    <java.version>19</java.version>
   </properties>
 
   <build>
